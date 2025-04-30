@@ -6,9 +6,11 @@
     "typescript": "^5.8.3"
   },
   "scripts": {
-    "start": "ts-node src/index.ts"
+    "start": "node src/index.js",
+    "test": "npx @modelcontextprotocol/inspector node src/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.2"
-  }
+  },
+  "type": "module"
 }
