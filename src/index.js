@@ -1,43 +1,42 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { Git } from './gitUtils.js';
 
 // Create an MCP server
 const server = new McpServer({
-  name: "Demo",
+  name: "Git Branch MCP",
   version: "1.0.0"
 });
 
 // Add an addition tool
-server.tool("add",
-  { a: z.number(), b: z.number() },
-  async ({ a, b }) => ({
-    content: [{ type: "text", text: String(a + b) }]
-  })
+server.tool("git.updateBranch",
+  "Update commits on the current branch based on the summary of the prompt used to modify the codebase",
+  { promptSummary: z.string() },
+  async ({ promptSummary }) => {
+    // Use the promptSummary as the commit message
+    const result = Git.updateBranch(promptSummary);
+    
+    if (result.success) {
+      let message = `Branch '${result.branch}' has been updated with changes related to: ${promptSummary}`;
+      
+      // If we switched branches, add that information
+      if (result.message.includes('Created and checked out new branch') || 
+          result.message.includes('Checked out existing branch')) {
+        message = `${result.message}. ${message}`;
+      }
+      
+      return {
+        content: [{ type: "text", text: message }]
+      };
+    } else {
+      return {
+        content: [{ type: "text", text: `Failed to update branch: ${result.message}` }]
+      };
+    }
+  }
 );
 
-// Add a dynamic greeting resource
-server.resource(
-  "greeting",
-  new ResourceTemplate("greeting://{name}", { list: undefined }),
-  async (uri, { name }) => ({
-    contents: [{
-      uri: uri.href,
-      text: `Hello, ${name}!`
-    }]
-  })
-);
-
-server.resource(
-  "echo",
-  new ResourceTemplate("echo://{message}", { list: undefined }),
-  async (uri, { message }) => ({
-    contents: [{
-      uri: uri.href,
-      text: `Resource echo: ${message}`
-    }]
-  })
-);
 
 // Start receiving messages on stdin and sending messages on stdout
 const transport = new StdioServerTransport();
