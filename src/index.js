@@ -26,6 +26,26 @@ server.tool("git.updateBranch",
         message = `${result.message}. ${message}`;
       }
       
+      // Add information about commits ahead of upstream
+      if (result.commitsAhead && result.commitsAhead.success) {
+        const commitInfo = result.commitsAhead;
+        message += `\n\nThis branch is ${commitInfo.commitCount} commit${commitInfo.commitCount !== 1 ? 's' : ''} ahead of ${commitInfo.upstreamBranch}.`;
+        
+        if (commitInfo.commitCount > 0 && commitInfo.commitList.length > 0) {
+          message += "\nRecent commits:";
+          // Show up to 5 most recent commits
+          const recentCommits = commitInfo.commitList.slice(0, 5);
+          recentCommits.forEach(commit => {
+            message += `\n- ${commit.hash.substring(0, 7)}: ${commit.message}`;
+          });
+          
+          // If more commits, indicate there are more
+          if (commitInfo.commitCount > 5) {
+            message += `\n... and ${commitInfo.commitCount - 5} more commit${commitInfo.commitCount - 5 !== 1 ? 's' : ''}.`;
+          }
+        }
+      }
+      
       return {
         content: [{ type: "text", text: message }]
       };

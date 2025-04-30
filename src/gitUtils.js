@@ -29,30 +29,80 @@ export class Git {
   }
 
   /**
+   * Checks if a remote branch exists
+   * @param {string} branch - Branch name to check
+   * @returns {boolean} True if the branch exists
+   */
+  static remoteBranchExists(branch) {
+    try {
+      execSync(`git rev-parse --verify --quiet origin/${branch}`, { stdio: 'ignore' });
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Gets number of commits between the current HEAD and origin/main or origin/master
+   * @returns {Object} Information about commits ahead of upstream
+   */
+  static getCommitsAheadOfUpstream() {
+    try {
+      // Check which upstream branch exists (origin/main or origin/master)
+      let upstreamBranch = null;
+      
+      if (Git.remoteBranchExists('main')) {
+        upstreamBranch = 'origin/main';
+      } else if (Git.remoteBranchExists('master')) {
+        upstreamBranch = 'origin/master';
+      }
+      
+      if (!upstreamBranch) {
+        return {
+          success: false,
+          message: "No origin/main or origin/master branch found"
+        };
+      }
+      
+      // Count commits between upstream and HEAD
+      const logOutput = execSync(`git log --oneline ${upstreamBranch}..HEAD`, { encoding: 'utf8' }).trim();
+      const commits = logOutput ? logOutput.split('\n') : [];
+      const commitCount = commits.length;
+      
+      // Get the commit list with truncated messages
+      const commitList = commits.map(commit => {
+        const [hash, ...messageParts] = commit.split(' ');
+        const message = messageParts.join(' ');
+        return { hash, message };
+      });
+      
+      return {
+        success: true,
+        upstreamBranch,
+        commitCount,
+        commitList
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  /**
    * Checks out a new branch. If the branch already exists, it will just check it out.
    * @param {string} branchName - Name of the branch to create and checkout
    * @returns {Object} Result of the branch creation/checkout
    */
   static checkoutNewBranch(branchName) {
     try {
-      // Check if branch exists
-      const branchExists = execSync(`git show-ref --verify --quiet refs/heads/${branchName}`) === 0;
-      
-      if (branchExists) {
-        // Branch exists, just check it out
-        execSync(`git checkout ${branchName}`, { encoding: 'utf8' });
-        return {
-          success: true,
-          message: `Checked out existing branch '${branchName}'`
-        };
-      } else {
-        // Create and checkout new branch
-        execSync(`git checkout -b ${branchName}`, { encoding: 'utf8' });
-        return {
-          success: true,
-          message: `Created and checked out new branch '${branchName}'`
-        };
-      }
+      // Create and checkout new branch
+      execSync(`git checkout -b ${branchName}`, { encoding: 'utf8' });
+      return {
+        success: true,
+        message: `Created and checked out new branch '${branchName}'`
+      };
     } catch (error) {
       return {
         success: false,
@@ -96,10 +146,14 @@ export class Git {
       // Commit the changes
       const commitResult = execSync(`git commit -m "${message}"`, { encoding: 'utf8' }).trim();
       
+      // Get commit count info
+      const commitsAhead = Git.getCommitsAheadOfUpstream();
+      
       return {
         success: true,
         message: commitResult,
-        branch: Git.getCurrentBranch()
+        branch: Git.getCurrentBranch(),
+        commitsAhead: commitsAhead.success ? commitsAhead : null
       };
     } catch (error) {
       return {
