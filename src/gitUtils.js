@@ -2,17 +2,15 @@ import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { execSync } from 'child_process';
+import fs from 'fs';
 
 const GitCommitData = z.object({
   branchName: z.string(),
-  commitMessage: z.string(),
-  participants: z.array(z.string()),
-  commitTarget: z.string().optional(),
+  commitMessage: z.string()
 });
 
 // Add OpenAI API support
-async function fetchFromOpenAI(prompt, apiKey) {
-
+async function generateGitCommitData(apiKey, prompt, diffOutput) {
   try {
     const client = new OpenAI({
       apiKey: apiKey
@@ -20,26 +18,52 @@ async function fetchFromOpenAI(prompt, apiKey) {
 
     const response = await client.responses.create({
       model: 'gpt-4o',
-      instructions: 'You are a coding assistant that helps with Git branch committing',
+      instructions: 'You are a version control assistant that helps with Git branch committing',
       input: [
-        { role: "system", content: "Extract the event information." },
+        { role: "system", content: "Extract the git commit data from the prompt and diff output." },
         {
           role: "user",
-          content: "Alice and Bob are going to a science fair on Friday.",
+          content: `Prompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
         },
       ],
       text: {
-        format: zodTextFormat(CalendarEvent, "event"),
+        format: zodTextFormat(GitCommitData, "gitCommitData"),
       },
     });
 
-    console.log(response);
-    console.log(response.output_text);
+    writeLog(response);
+
+    return response;
   } catch (error) {
     console.error('Error calling OpenAI API:', error.message);
-    return null;
+    // Provide fallback values
+    return {
+      branchName: generateSimpleBranchName(prompt),
+      commitMessage: prompt,
+    };
   }
 }
+
+// Helper to generate a simple branch name from prompt
+function generateSimpleBranchName(prompt) {
+  return prompt
+    .toLowerCase()
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/[^a-z0-9-]/g, '-') // Remove non-alphanumeric characters except hyphens
+    .replace(/-+/g, '-') // Collapse multiple hyphens
+    .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
+    .slice(0, 50); // Limit length
+}
+
+function writeLog(message) {
+  console.log(message);
+  // create the file if it doesn't exist
+  if (!fs.existsSync('/tmp/git-branch-mcp-log.txt')) {
+    fs.writeFileSync('/tmp/git-branch-mcp-log.txt', '');
+  }
+  fs.appendFileSync('/tmp/git-branch-mcp-log.txt', message + '\n');
+}
+
 
 export class Git {
 
@@ -62,54 +86,6 @@ export class Git {
       }
       return null;
     } catch (error) {
-      return null;
-    }
-  }
-
-  // Add function to generate commit message using OpenAI
-  static async generateCommitMessage(diffOutput, summary) {
-    const apiKey = Git.getOpenAIApiKey();
-    if (!apiKey) return null;
-
-    const prompt = `Based on the following git diff and original prompt summary, generate a concise, specific git commit message:
-    
-Summary: ${summary}
-
-Diff:
-${diffOutput}`;
-
-    try {
-      return await fetchFromOpenAI(prompt, apiKey);
-    } catch (error) {
-      console.error("Error generating commit message:", error.message);
-      return null;
-    }
-  }
-
-  // Add function to generate branch name using OpenAI
-  static async generateBranchName(diffOutput, summary) {
-    const apiKey = Git.getOpenAIApiKey();
-    if (!apiKey) return null;
-
-    const prompt = `Based on the following git diff and summary, generate a concise, kebab-case branch name (no spaces, only lowercase letters, numbers, and hyphens, max 50 chars):
-    
-Summary: ${summary}
-
-Diff:
-${diffOutput}`;
-
-    try {
-      const branchName = await fetchFromOpenAI(prompt, apiKey);
-      // Ensure the branch name is properly formatted
-      return branchName
-        .toLowerCase()
-        .replace(/\\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '')
-        .slice(0, 50);
-    } catch (error) {
-      console.error("Error generating branch name:", error.message);
       return null;
     }
   }
@@ -223,7 +199,23 @@ ${diffOutput}`;
     }
   }
 
-  static async updateBranch(currentWorkingDirectory, summary) {
+  static commitWithMessage(message) {
+    // write the commit message to a temp file
+    const tfId = Math.random().toString(36).substring(2, 15);
+    const tempFilePath = `.git/gbm/git-branch-mcp-${tfId}.txt`;
+
+    // create the .git/gbm directory if it doesn't exist
+    if (!fs.existsSync('.git/gbm')) {
+      fs.mkdirSync('.git/gbm');
+    }
+
+    fs.writeFileSync(tempFilePath, message);
+    execSyncSafe(`git commit -F ${tempFilePath}`, { encoding: 'utf8' });
+    // delete the temp file
+    fs.unlinkSync(tempFilePath);
+  }
+
+  static async updateBranch(currentWorkingDirectory, prompt) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
@@ -246,17 +238,10 @@ ${diffOutput}`;
 
       // Get the diff content for OpenAI if API key is available
       let detailedDiffOutput = "";
-      const hasOpenAIKey = Git.getOpenAIApiKey() !== null;
-      
-      if (hasOpenAIKey) {
-        // Get the actual diff content for OpenAI
-        detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
-      }
-
-      let message = summary || "Update branch with latest changes";
+      const openAIKey = Git.getOpenAIApiKey();
       
       // Check if we're on master or main
-      const currentBranch = Git.getCurrentBranch(); // getCurrentBranch handles cwd
+      const currentBranch = Git.getCurrentBranch();
       
       // Handle case where getCurrentBranch failed
       if (currentBranch === null) {
@@ -266,31 +251,34 @@ ${diffOutput}`;
         };
       }
 
-      let branchMessage = '';
+      // Generate git commit data with OpenAI if API key is available
+      let gitCommitData = null;
+      
+      if (openAIKey) {
+        detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
+        gitCommitData = await generateGitCommitData(openAIKey, prompt, detailedDiffOutput);
+        writeLog(gitCommitData);
+      }
+
+      // Generate the commit message
+      let message = prompt;
+      if (gitCommitData) {
+        message = gitCommitData.commitMessage || prompt;
+      }
 
       if (currentBranch === 'master' || currentBranch === 'main') {
         // Generate branch name with OpenAI if API key is available
         let branchName = "";
-        
-        if (hasOpenAIKey && detailedDiffOutput) {
-          const generatedBranchName = await Git.generateBranchName(detailedDiffOutput, summary);
-          if (generatedBranchName) {
-            branchName = `feature/${generatedBranchName}`;
-          }
+       
+        if (gitCommitData) {
+          branchName = gitCommitData.branchName;
         }
-        
+
         // Fall back to traditional method if OpenAI failed or isn't available
         if (!branchName) {
-          const safeBranchName = summary
-            .toLowerCase()
-            .replace(/\\s+/g, '-') // Replace spaces with hyphens
-            .replace(/[^a-z0-9-]/g, '-') // Remove non-alphanumeric characters except hyphens
-            .replace(/-+/g, '-') // Collapse multiple hyphens
-            .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
-            .slice(0, 50); // Limit length
-          
+          branchName = generateSimpleBranchName(prompt);
           // Handle empty branch name after sanitization
-          branchName = `feature/${safeBranchName || 'new-feature'}`; 
+          branchName = `feature/${branchName}`;
         }
         
         // checkoutNewBranch handles cwd and checking out existing branches
@@ -300,33 +288,26 @@ ${diffOutput}`;
           // Pass the specific error message from checkoutNewBranch
           return { success: false, message: branchResult.message }; 
         }
-        // Store the message from checkoutNewBranch to include in the final output
-        branchMessage = branchResult.message; 
       }
 
-      // Generate commit message with OpenAI if API key is available
-      if (hasOpenAIKey && detailedDiffOutput) {
-        const generatedMessage = await Git.generateCommitMessage(detailedDiffOutput, summary);
-        if (generatedMessage) {
-          message = generatedMessage;
-        }
-      }
+      Git.commitWithMessage(message);
 
-      // Commit the changes - Ensure message is properly escaped for the command line
-      const commitMessage = message.replace(/"/g, '\\"'); // Basic escaping for double quotes
-      execSyncSafe(`git commit -m "${commitMessage}"`, { encoding: 'utf8' });
-      
       // Get commit count info after successful commit
       const commitsAhead = Git.getCommitsAheadOfUpstream(); // getCommitsAheadOfUpstream handles cwd
-      
-      const finalMessage = branchMessage ? `${branchMessage}. Successfully committed changes.` : 'Successfully committed changes.';
+      writeLog(commitsAhead);
+     
+      // final message includes: branch name, commits ahead, and commit message
+      const finalMessage = `Successfully committed changes.
+  Branch: ${Git.getCurrentBranch()} 
+  Commit message: ${message}
+  Commit on branch: ${commitsAhead.commitCount}
+  Commit list:
+  ${commitsAhead.commitList.map(commit => `  ${commit.hash} - ${commit.message}`).join('\n')}
+  `;
 
       return {
         success: true,
         message: finalMessage, // Include branch switching message if relevant
-        branch: Git.getCurrentBranch(),
-        // Ensure commitsAhead is attached correctly, handling potential failures
-        commitsAhead: commitsAhead.success ? commitsAhead : { success: false, message: commitsAhead.message || "Failed to get commits ahead info." } 
       };
     } catch (error) {
        // Try to provide a more specific error message
@@ -637,6 +618,7 @@ ${diffOutput}`;
 }
 
 function execSyncSafe(cmd, opts = {}) {
+  writeLog(`Executing: ${cmd}`);
   try {
     const out = execSync(cmd, { encoding: 'utf8', ...opts });
     return { status: 0, stdout: out, stderr: '' };

@@ -31,13 +31,15 @@ describe('Git.updateBranch', () => {
     fs.removeSync(tempDir);
   });
   
-  test('should create a feature branch and commit changes', () => {
+  test('should create a feature branch and commit changes', async () => {
     // Make a change to the repository
     fs.writeFileSync(path.join(tempDir, 'test.js'), 'console.log("Hello, world!");');
     
     // Call updateBranch with a summary
-    const summary = 'Add test script';
-    const result = Git.updateBranch(tempDir, summary);
+    const prompt = 'Add test script';
+    const result = await Git.updateBranch(tempDir, prompt);
+
+    console.log(result);
     
     // Verify the result
     expect(result.success).toBe(true);
@@ -54,14 +56,14 @@ describe('Git.updateBranch', () => {
     
     // Verify the commit was made
     const lastCommit = execSync('git log -1 --pretty=%B', { cwd: tempDir, encoding: 'utf8' }).trim();
-    expect(lastCommit).toBe(summary);
+    expect(lastCommit).toBe(prompt);
     
     // Verify the file was committed
     const files = execSync('git ls-tree -r HEAD --name-only', { cwd: tempDir, encoding: 'utf8' });
     expect(files).toContain('test.js');
   });
   
-  test('should commit changes to an existing branch', () => {
+  test('should commit changes to an existing branch', async () => {
     // Create a feature branch
     execSync('git checkout -b feature/existing-branch', { cwd: tempDir });
     
@@ -70,7 +72,7 @@ describe('Git.updateBranch', () => {
     
     // Call updateBranch with a summary
     const summary = 'Add another test script';
-    const result = Git.updateBranch(tempDir, summary);
+    const result = await Git.updateBranch(tempDir, summary);
     
     // Verify the result
     expect(result.success).toBe(true);
@@ -86,10 +88,10 @@ describe('Git.updateBranch', () => {
     expect(files).toContain('another-test.js');
   });
   
-  test('should handle no changes', () => {
+  test('should handle no changes', async () => {
     // Call updateBranch without making any changes
     const summary = 'No changes to commit';
-    const result = Git.updateBranch(tempDir, summary);
+    const result = await Git.updateBranch(tempDir, summary);
     
     // Verify the result
     expect(result.success).toBe(true);
