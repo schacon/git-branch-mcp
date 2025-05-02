@@ -46,6 +46,10 @@ npm run jest
 This MCP server provides tooling to keep a git branch intelligently managed
 with the changes that your agent is making to the codebase.
 
+## Authors
+
+- Scott Chacon <schacon@gmail.com>
+
 ## Available MCP Functions
 
 ### git.updateBranch
