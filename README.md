@@ -10,6 +10,26 @@ npm start
 
 ## Testing
 
+The project includes several test suites:
+
+```bash
+# Run all tests
+npm run jest
+
+# Run specific test file
+npm run jest -- test/gitUtils.test.js
+npm run jest -- test/mcp.test.js
+npm run jest -- test/integration.test.js
+```
+
+### Test Suite Overview
+
+- **gitUtils.test.js**: Tests the Git utility functions directly
+- **mcp.test.js**: Tests the MCP server functionality with mocked Git utilities
+- **integration.test.js**: End-to-end tests of the MCP server with real Git operations
+
+## MCP Inspector Testing
+
 ```bash
 npm run test
 ```
@@ -25,3 +45,17 @@ npm run test
 
 This MCP server provides tooling to keep a git branch intelligently managed
 with the changes that your agent is making to the codebase.
+
+## Available MCP Functions
+
+### git.updateBranch
+
+Updates commits on the current branch based on the summary of the prompt used to modify the codebase. If on the main/master branch, it creates a new feature branch based on the summary.
+
+### git.integrateBranch
+
+Merges the current branch into the default branch (main or master) and optionally deletes the current branch.
+
+### git.summarizeBranch
+
+Shows a list of the current commits on the active branch and information about the branch.
