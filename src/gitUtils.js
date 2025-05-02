@@ -32,12 +32,18 @@ async function generateGitCommitData(apiKey, prompt, diffOutput) {
     });
 
     writeLog(`OpenAI Call`);
-    writeLog(`branch name: ${response.gitCommitData.branchName}`);
-    writeLog(`commit message: ${response.gitCommitData.commitMessage}`);
+    // pretty print the response
+    const prettyResponse = JSON.stringify(response, null, 2);
+    writeLog(prettyResponse);
 
-    return response;
+    const gitCommitData = JSON.parse(response.output_text);
+
+    writeLog(`branch name: ${gitCommitData.branchName}`);
+    writeLog(`commit message: ${gitCommitData.commitMessage}`);
+
+    return gitCommitData;
   } catch (error) {
-    console.error('Error calling OpenAI API:', error.message);
+    writeLog('Error calling OpenAI API:', error.message);
     // Provide fallback values
     return {
       branchName: generateSimpleBranchName(prompt),
@@ -58,7 +64,6 @@ function generateSimpleBranchName(prompt) {
 }
 
 function writeLog(message) {
-  console.log(message);
   // create the file if it doesn't exist
   if (!fs.existsSync('/tmp/git-branch-mcp-log.txt')) {
     fs.writeFileSync('/tmp/git-branch-mcp-log.txt', '');
@@ -261,7 +266,8 @@ export class Git {
       if (openAIKey && useAi) {
         detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
         gitCommitData = await generateGitCommitData(openAIKey, prompt, detailedDiffOutput);
-        writeLog(gitCommitData);
+        writeLog(`branch name: ${gitCommitData.branchName}`);
+        writeLog(`commit message: ${gitCommitData.commitMessage}`);
       }
 
       // Generate the commit message
@@ -304,7 +310,8 @@ export class Git {
       const finalMessage = `Successfully committed changes.
 Branch: ${Git.getCurrentBranch()} 
 Commit list:
-${commitsAhead.commitList.map(commit => `  ${commit.hash} - ${commit.message}`).join('\n')}
+${commitsAhead.commitList.map(commit => `${commit.hash} - ${commit.message}`).join('\n')}
+
 Commit message:
 ${message}
   `;
@@ -602,13 +609,64 @@ ${message}
       // Get commits ahead of upstream main/master - getCommitsAheadOfUpstream handles cwd
       const commitsAheadInfo = Git.getCommitsAheadOfUpstream(); 
       
+      // Create a more user-friendly message similar to updateBranch
+      let finalMessage = `Branch Summary: ${branchName}\n`;
+      
+      // Add creation info if available
+      if (creationInfo && creationInfo.date) {
+        finalMessage += `\nCreated on: ${creationInfo.date}`;
+      }
+      
+      // Add tracking info if available
+      if (trackingInfo) {
+        finalMessage += `\nTracking: ${trackingInfo.upstream}`;
+        if (trackingInfo.ahead > 0 || trackingInfo.behind > 0) {
+          finalMessage += ` (`;
+          if (trackingInfo.ahead > 0) {
+            finalMessage += `ahead ${trackingInfo.ahead}`;
+            if (trackingInfo.behind > 0) finalMessage += ', ';
+          }
+          if (trackingInfo.behind > 0) {
+            finalMessage += `behind ${trackingInfo.behind}`;
+          }
+          finalMessage += `)`;
+        }
+      }
+      
+      // Add commits ahead of upstream info
+      if (commitsAheadInfo.success) {
+        if (commitsAheadInfo.commitCount > 0) {
+          finalMessage += `\n\nAhead of ${commitsAheadInfo.upstreamBranch}: ${commitsAheadInfo.commitCount} commit${commitsAheadInfo.commitCount !== 1 ? 's' : ''}`;
+          finalMessage += `\n\nCommits different from ${commitsAheadInfo.upstreamBranch}:`;
+          commitsAheadInfo.commitList.forEach(commit => {
+            finalMessage += `\n  ${commit.hash} - ${commit.message}`;
+          });
+        } else {
+          finalMessage += `\n\nNo commits ahead of ${commitsAheadInfo.upstreamBranch}`;
+        }
+      }
+      
+      // Add recent commits section
+      if (commits.length > 0) {
+        finalMessage += `\n\nRecent Commits:`;
+        commits.slice(0, Math.min(5, commits.length)).forEach(commit => {
+          finalMessage += `\n- \`${commit.hash}\` (${commit.date}) by ${commit.author}: ${commit.message}`;
+        });
+        
+        if (commits.length > 5) {
+          finalMessage += `\n... and ${commits.length - 5} more commits`;
+        }
+      } else {
+        finalMessage += `\n\nNo commits found on this branch`;
+      }
+      
       return {
         success: true,
+        message: finalMessage,
         branch: branchName,
         commits,
         creationInfo,
         trackingInfo,
-        // Provide clearer fallback if commitsAheadInfo failed
         commitsAheadOfUpstream: commitsAheadInfo.success ? commitsAheadInfo : { success: false, message: commitsAheadInfo.message || "Failed to get upstream comparison." } 
       };
     } catch (error) {

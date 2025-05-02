@@ -18,7 +18,7 @@ server.tool("git.updateBranch",
    },
   async ({ fullPrompt, currentWorkingDirectory }) => {
     // Use the promptSummary as the commit message
-    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt);
+    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt, true);
     
     if (result.success) {
       return {
@@ -134,9 +134,7 @@ const transport = new StdioServerTransport();
 (async () => {
   try {
     await server.connect(transport);
-    console.log("MCP Server connected and ready");
   } catch (error) {
-    console.error("Failed to connect MCP server:", error);
     process.exit(1);
   }
 })();

@@ -39,8 +39,6 @@ describe('Git.updateBranch', () => {
     const prompt = 'Add test script';
     const result = await Git.updateBranch(tempDir, prompt, false);
 
-    console.log(result);
-    
     // Verify the result
     expect(result.success).toBe(true);
     
