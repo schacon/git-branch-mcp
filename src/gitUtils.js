@@ -31,7 +31,9 @@ async function generateGitCommitData(apiKey, prompt, diffOutput) {
       },
     });
 
-    writeLog(response);
+    writeLog(`OpenAI Call`);
+    writeLog(`branch name: ${response.gitCommitData.branchName}`);
+    writeLog(`commit message: ${response.gitCommitData.commitMessage}`);
 
     return response;
   } catch (error) {
