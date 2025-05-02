@@ -1,4 +1,45 @@
+import OpenAI from "openai";
+import { zodTextFormat } from "openai/helpers/zod";
+import { z } from "zod";
 import { execSync } from 'child_process';
+
+const GitCommitData = z.object({
+  branchName: z.string(),
+  commitMessage: z.string(),
+  participants: z.array(z.string()),
+  commitTarget: z.string().optional(),
+});
+
+// Add OpenAI API support
+async function fetchFromOpenAI(prompt, apiKey) {
+
+  try {
+    const client = new OpenAI({
+      apiKey: apiKey
+    });
+
+    const response = await client.responses.create({
+      model: 'gpt-4o',
+      instructions: 'You are a coding assistant that helps with Git branch committing',
+      input: [
+        { role: "system", content: "Extract the event information." },
+        {
+          role: "user",
+          content: "Alice and Bob are going to a science fair on Friday.",
+        },
+      ],
+      text: {
+        format: zodTextFormat(CalendarEvent, "event"),
+      },
+    });
+
+    console.log(response);
+    console.log(response.output_text);
+  } catch (error) {
+    console.error('Error calling OpenAI API:', error.message);
+    return null;
+  }
+}
 
 export class Git {
 
@@ -8,6 +49,67 @@ export class Git {
     } catch (error) {
       // Log the error for debugging, but return null as per original logic
       console.error("Error getting current branch:", error.message);
+      return null;
+    }
+  }
+
+  // Add function to check if OpenAI API key is configured
+  static getOpenAIApiKey() {
+    try {
+      const result = execSyncSafe('git config openai.key', { encoding: 'utf8' });
+      if (result.status === 0 && result.stdout.trim()) {
+        return result.stdout.trim();
+      }
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  // Add function to generate commit message using OpenAI
+  static async generateCommitMessage(diffOutput, summary) {
+    const apiKey = Git.getOpenAIApiKey();
+    if (!apiKey) return null;
+
+    const prompt = `Based on the following git diff and original prompt summary, generate a concise, specific git commit message:
+    
+Summary: ${summary}
+
+Diff:
+${diffOutput}`;
+
+    try {
+      return await fetchFromOpenAI(prompt, apiKey);
+    } catch (error) {
+      console.error("Error generating commit message:", error.message);
+      return null;
+    }
+  }
+
+  // Add function to generate branch name using OpenAI
+  static async generateBranchName(diffOutput, summary) {
+    const apiKey = Git.getOpenAIApiKey();
+    if (!apiKey) return null;
+
+    const prompt = `Based on the following git diff and summary, generate a concise, kebab-case branch name (no spaces, only lowercase letters, numbers, and hyphens, max 50 chars):
+    
+Summary: ${summary}
+
+Diff:
+${diffOutput}`;
+
+    try {
+      const branchName = await fetchFromOpenAI(prompt, apiKey);
+      // Ensure the branch name is properly formatted
+      return branchName
+        .toLowerCase()
+        .replace(/\\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 50);
+    } catch (error) {
+      console.error("Error generating branch name:", error.message);
       return null;
     }
   }
@@ -121,7 +223,7 @@ export class Git {
     }
   }
 
-  static updateBranch(currentWorkingDirectory, summary) {
+  static async updateBranch(currentWorkingDirectory, summary) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
@@ -142,33 +244,54 @@ export class Git {
         };
       }
 
-      const message = summary || "Update branch with latest changes";
+      // Get the diff content for OpenAI if API key is available
+      let detailedDiffOutput = "";
+      const hasOpenAIKey = Git.getOpenAIApiKey() !== null;
+      
+      if (hasOpenAIKey) {
+        // Get the actual diff content for OpenAI
+        detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
+      }
+
+      let message = summary || "Update branch with latest changes";
       
       // Check if we're on master or main
       const currentBranch = Git.getCurrentBranch(); // getCurrentBranch handles cwd
       
       // Handle case where getCurrentBranch failed
-       if (currentBranch === null) {
-         return {
-           success: false,
-           message: "Could not determine the current branch before committing."
-         };
-       }
+      if (currentBranch === null) {
+        return {
+          success: false,
+          message: "Could not determine the current branch before committing."
+        };
+      }
 
-      let branchMessage = ''; // To store messages about branch switching
+      let branchMessage = '';
 
       if (currentBranch === 'master' || currentBranch === 'main') {
-        // Create a new feature branch based on the summary
-        const safeBranchName = summary
-          .toLowerCase()
-          .replace(/\\s+/g, '-') // Replace spaces with hyphens
-          .replace(/[^a-z0-9-]/g, '-') // Remove non-alphanumeric characters except hyphens
-          .replace(/-+/g, '-') // Collapse multiple hyphens
-          .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
-          .slice(0, 50); // Limit length
+        // Generate branch name with OpenAI if API key is available
+        let branchName = "";
         
-        // Handle empty branch name after sanitization
-        const branchName = `feature/${safeBranchName || 'new-feature'}`; 
+        if (hasOpenAIKey && detailedDiffOutput) {
+          const generatedBranchName = await Git.generateBranchName(detailedDiffOutput, summary);
+          if (generatedBranchName) {
+            branchName = `feature/${generatedBranchName}`;
+          }
+        }
+        
+        // Fall back to traditional method if OpenAI failed or isn't available
+        if (!branchName) {
+          const safeBranchName = summary
+            .toLowerCase()
+            .replace(/\\s+/g, '-') // Replace spaces with hyphens
+            .replace(/[^a-z0-9-]/g, '-') // Remove non-alphanumeric characters except hyphens
+            .replace(/-+/g, '-') // Collapse multiple hyphens
+            .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
+            .slice(0, 50); // Limit length
+          
+          // Handle empty branch name after sanitization
+          branchName = `feature/${safeBranchName || 'new-feature'}`; 
+        }
         
         // checkoutNewBranch handles cwd and checking out existing branches
         const branchResult = Git.checkoutNewBranch(branchName); 
@@ -179,6 +302,14 @@ export class Git {
         }
         // Store the message from checkoutNewBranch to include in the final output
         branchMessage = branchResult.message; 
+      }
+
+      // Generate commit message with OpenAI if API key is available
+      if (hasOpenAIKey && detailedDiffOutput) {
+        const generatedMessage = await Git.generateCommitMessage(detailedDiffOutput, summary);
+        if (generatedMessage) {
+          message = generatedMessage;
+        }
       }
 
       // Commit the changes - Ensure message is properly escaped for the command line
@@ -213,14 +344,8 @@ export class Git {
     }
   }
 
-  /**
-   * Determines which default branch (main or master) exists in the repository
-   * @returns {Object} Information about the default branch
-   */
   static getDefaultBranch() {
-    let repoPath;
     try {
-      // cd to the current working directory
       // Check for local branches first
       const branchesOutput = execSyncSafe('git branch', { encoding: 'utf8' }).stdout.trim();
       const branches = branchesOutput.trim().split('\\n');
@@ -272,14 +397,7 @@ export class Git {
     }
   }
 
-  /**
-   * Merges the current branch into the default branch (main or master) and optionally deletes the current branch
-   * @param {boolean} deleteBranch - Whether to delete the current branch after merging
-   * @param {string} currentWorkingDirectory - Current working directory
-   * @returns {Object} Result of the merge operation
-   */
   static mergeToDefaultBranch(currentWorkingDirectory, deleteBranch = true) {
-    let repoPath;
     let originalBranch; // Keep track of the branch to potentially delete later
     try {
       // cd to the current working directory
@@ -391,13 +509,7 @@ export class Git {
     }
   }
 
-  /**
-   * Gets a summary of the current branch including name, last commits, and creation date
-   * @param {number} commitLimit - Maximum number of commits to include in the summary
-   * @returns {Object} Branch summary information
-   */
   static getBranchSummary(currentWorkingDirectory, commitLimit = 10) {
-    let repoPath;
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);

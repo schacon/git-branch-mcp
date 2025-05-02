@@ -13,7 +13,8 @@
     "jest": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.10.2"
+    "@modelcontextprotocol/sdk": "^1.10.2",
+    "openai": "^4.96.2"
   },
   "type": "module"
 }
