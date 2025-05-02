@@ -298,11 +298,11 @@ export class Git {
      
       // final message includes: branch name, commits ahead, and commit message
       const finalMessage = `Successfully committed changes.
-  Branch: ${Git.getCurrentBranch()} 
-  Commit message: ${message}
-  Commit on branch: ${commitsAhead.commitCount}
-  Commit list:
-  ${commitsAhead.commitList.map(commit => `  ${commit.hash} - ${commit.message}`).join('\n')}
+Branch: ${Git.getCurrentBranch()} 
+Commit list:
+${commitsAhead.commitList.map(commit => `  ${commit.hash} - ${commit.message}`).join('\n')}
+Commit message:
+${message}
   `;
 
       return {
