@@ -14,8 +14,12 @@ export class Git {
 
   static remoteBranchExists(branch) {
     try {
-      execSyncSafe(`git rev-parse --verify --quiet origin/${branch}`, { stdio: 'ignore' });
-      return true;
+      let result = execSyncSafe(`git rev-parse --verify --quiet origin/${branch}`, { stdio: 'ignore' });
+      if (result.status === 0) {
+        return true;
+      } else {
+        return false;
+      }
     } catch (error) {
       return false;
     }
@@ -23,8 +27,12 @@ export class Git {
 
   static branchExists(branch) {
     try {
-      execSyncSafe(`git rev-parse --verify --quiet ${branch}`, { stdio: 'ignore' });
-      return true;
+      let result = execSyncSafe(`git rev-parse --verify --quiet ${branch}`, { stdio: 'ignore' });
+      if (result.status === 0) {
+        return true;
+      } else {
+        return false;
+      }
     } catch (error) {
       return false;
     }
@@ -45,7 +53,7 @@ export class Git {
       } else if (Git.branchExists('master')) {
         upstreamBranch = 'master';
       }
-      
+
       if (!upstreamBranch) {
         return {
           success: false,
@@ -154,7 +162,7 @@ export class Git {
         const safeBranchName = summary
           .toLowerCase()
           .replace(/\\s+/g, '-') // Replace spaces with hyphens
-          .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric characters except hyphens
+          .replace(/[^a-z0-9-]/g, '-') // Remove non-alphanumeric characters except hyphens
           .replace(/-+/g, '-') // Collapse multiple hyphens
           .replace(/^-|-$/g, '') // Trim leading/trailing hyphens
           .slice(0, 50); // Limit length
@@ -185,7 +193,7 @@ export class Git {
       return {
         success: true,
         message: finalMessage, // Include branch switching message if relevant
-        branch: Git.getCurrentBranch(), // getCurrentBranch handles cwd
+        branch: Git.getCurrentBranch(),
         // Ensure commitsAhead is attached correctly, handling potential failures
         commitsAhead: commitsAhead.success ? commitsAhead : { success: false, message: commitsAhead.message || "Failed to get commits ahead info." } 
       };

@@ -31,7 +31,7 @@ npm run jest -- test/integration.test.js
 ## MCP Inspector Testing
 
 ```bash
-npm run test
+npm run jest
 ```
 
 ## Setting up Cursor to use the server

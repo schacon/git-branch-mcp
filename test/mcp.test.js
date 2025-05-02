@@ -7,25 +7,23 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { Git } from '../src/gitUtils.js';
 
-// Mock the Git class for testing
-jest.mock('../src/gitUtils.js', () => {
-  const original = jest.requireActual('../src/gitUtils.js');
-  return {
-    Git: {
-      ...original.Git,
-      updateBranch: jest.fn()
-    }
-  };
+// Use jest.spyOn instead of jest.mock for ES modules
+beforeEach(() => {
+  // Set up Git.updateBranch mock
+  jest.spyOn(Git, 'updateBranch').mockImplementation(() => ({}));
+});
+
+afterEach(() => {
+  // Clean up all mocks
+  jest.restoreAllMocks();
 });
 
 describe('MCP Git Branch Server', () => {
   let server;
   let tempDir;
+  let updateBranchHandler; // Store the handler here
   
   beforeEach(() => {
-    // Reset mocks
-    jest.clearAllMocks();
-    
     // Create a temporary directory for the test
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-mcp-test-'));
     
@@ -49,6 +47,30 @@ describe('MCP Git Branch Server', () => {
       version: "1.0.0"
     });
     
+    // Create the handler function
+    updateBranchHandler = async ({ promptSummary, currentWorkingDirectory }) => {
+      // Use the promptSummary as the commit message
+      const result = Git.updateBranch(currentWorkingDirectory, promptSummary);
+      
+      if (result.success) {
+        let message = `Branch '${result.branch}' has been updated with changes related to: ${promptSummary}`;
+        
+        // If we switched branches, add that information
+        if (result.message.includes('Created and checked out new branch') || 
+            result.message.includes('Checked out existing branch')) {
+          message = `${result.message}. ${message}`;
+        }
+        
+        return {
+          content: [{ type: "text", text: message }]
+        };
+      } else {
+        return {
+          content: [{ type: "text", text: `Failed to update branch: ${result.message}` }]
+        };
+      }
+    };
+    
     // Add git.updateBranch tool to the server
     server.tool("git.updateBranch",
       "Update commits on the current branch based on the summary of the prompt used to modify the codebase",
@@ -56,28 +78,7 @@ describe('MCP Git Branch Server', () => {
         promptSummary: z.string(),
         currentWorkingDirectory: z.string(),
       },
-      async ({ promptSummary, currentWorkingDirectory }) => {
-        // Use the promptSummary as the commit message
-        const result = Git.updateBranch(currentWorkingDirectory, promptSummary);
-        
-        if (result.success) {
-          let message = `Branch '${result.branch}' has been updated with changes related to: ${promptSummary}`;
-          
-          // If we switched branches, add that information
-          if (result.message.includes('Created and checked out new branch') || 
-              result.message.includes('Checked out existing branch')) {
-            message = `${result.message}. ${message}`;
-          }
-          
-          return {
-            content: [{ type: "text", text: message }]
-          };
-        } else {
-          return {
-            content: [{ type: "text", text: `Failed to update branch: ${result.message}` }]
-          };
-        }
-      }
+      updateBranchHandler
     );
   });
   
@@ -91,7 +92,7 @@ describe('MCP Git Branch Server', () => {
     fs.writeFileSync(path.join(tempDir, 'test.js'), 'console.log("Hello, world!");');
     
     // Mock the Git.updateBranch response
-    Git.updateBranch.mockReturnValue({
+    jest.spyOn(Git, 'updateBranch').mockReturnValue({
       success: true,
       message: "Created and checked out new branch 'feature/add-test-script'. Successfully committed changes.",
       branch: 'feature/add-test-script',
@@ -103,8 +104,8 @@ describe('MCP Git Branch Server', () => {
       }
     });
     
-    // Call the MCP server's git.updateBranch tool
-    const result = await server.callTool('git.updateBranch', {
+    // Call the handler directly
+    const result = await updateBranchHandler({
       promptSummary: 'Add test script',
       currentWorkingDirectory: tempDir
     });
@@ -119,13 +120,13 @@ describe('MCP Git Branch Server', () => {
   
   test('git.updateBranch should handle errors', async () => {
     // Mock the Git.updateBranch to return an error
-    Git.updateBranch.mockReturnValue({
+    jest.spyOn(Git, 'updateBranch').mockReturnValue({
       success: false,
       message: "Failed to update branch: Some error occurred"
     });
     
-    // Call the MCP server's git.updateBranch tool
-    const result = await server.callTool('git.updateBranch', {
+    // Call the handler directly
+    const result = await updateBranchHandler({
       promptSummary: 'Add test script',
       currentWorkingDirectory: tempDir
     });
