@@ -20,10 +20,10 @@ async function generateGitCommitData(apiKey, prompt, diffOutput) {
       model: 'gpt-4o',
       instructions: 'You are a version control assistant that helps with Git branch committing',
       input: [
-        { role: "system", content: "Extract the git commit data from the prompt and diff output. Format commit messages with a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed. Example:\n\nAdd user authentication system\n\nImplemented a secure authentication flow to address increasing security concerns and enable user-specific features that were previously impossible without a proper identity system." },
+        { role: "system", content: "Extract the git commit data from the prompt and diff output. Format commit messages with a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed. Example:\n\nAdd user authentication system\n\nImplement a secure authentication flow to address increasing security concerns and enable user-specific features that were previously impossible without a proper identity system." },
         {
           role: "user",
-          content: `Determine from this AI prompt and diff output what the git commit data should be. The message should be a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed. The first summary line should be no more than 50 characters. The branch name should be a simple name like "feature/add-user-authentication" or "fix/typo-in-login-page". Here is the data:\n\nPrompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
+          content: `Determine from this AI prompt and diff output what the git commit data should be. The message should be a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed based off the prompt. The first summary line should be no more than 50 characters. The branch name should be a simple name like "feature/add-user-authentication" or "fix/typo-in-login-page". Here is the data:\n\nPrompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
         },
       ],
       text: {
