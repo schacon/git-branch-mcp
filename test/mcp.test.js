@@ -76,7 +76,7 @@ describe('MCP Git Branch Server', () => {
       "Update commits on the current branch based on the summary of the prompt used to modify the codebase",
       {
         promptSummary: z.string(),
-        currentWorkingDirectory: z.string(),
+        currentWorkingDirectory: z.string()
       },
       updateBranchHandler
     );

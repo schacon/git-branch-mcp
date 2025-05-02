@@ -215,7 +215,7 @@ export class Git {
     fs.unlinkSync(tempFilePath);
   }
 
-  static async updateBranch(currentWorkingDirectory, prompt) {
+  static async updateBranch(currentWorkingDirectory, prompt, useAi = false) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
@@ -236,9 +236,9 @@ export class Git {
         };
       }
 
-      // Get the diff content for OpenAI if API key is available
+      // Get the diff content for OpenAI if API key is available and useAi is true
       let detailedDiffOutput = "";
-      const openAIKey = Git.getOpenAIApiKey();
+      const openAIKey = useAi ? Git.getOpenAIApiKey() : null;
       
       // Check if we're on master or main
       const currentBranch = Git.getCurrentBranch();
@@ -251,10 +251,10 @@ export class Git {
         };
       }
 
-      // Generate git commit data with OpenAI if API key is available
+      // Generate git commit data with OpenAI if API key is available and useAi is true
       let gitCommitData = null;
       
-      if (openAIKey) {
+      if (openAIKey && useAi) {
         detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
         gitCommitData = await generateGitCommitData(openAIKey, prompt, detailedDiffOutput);
         writeLog(gitCommitData);
@@ -267,14 +267,14 @@ export class Git {
       }
 
       if (currentBranch === 'master' || currentBranch === 'main') {
-        // Generate branch name with OpenAI if API key is available
+        // Generate branch name with OpenAI if API key is available and useAi is true
         let branchName = "";
        
         if (gitCommitData) {
           branchName = gitCommitData.branchName;
         }
 
-        // Fall back to traditional method if OpenAI failed or isn't available
+        // Fall back to traditional method if OpenAI failed or isn't available or useAi is false
         if (!branchName) {
           branchName = generateSimpleBranchName(prompt);
           // Handle empty branch name after sanitization

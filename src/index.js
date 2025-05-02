@@ -11,15 +11,15 @@ const server = new McpServer({
 
 // Add an addition tool
 server.tool("git.updateBranch",
-  "Update commits on the current branch based on the prompt used to modify the codebase",
+  "Update commits on the current branch based on the prompt used to modify the codebase.",
   {
     fullPrompt: z.string(),
-    currentWorkingDirectory: z.string(),
-   },
+    currentWorkingDirectory: z.string()
+  },
   async ({ fullPrompt, currentWorkingDirectory }) => {
     // Use the promptSummary as the commit message
     console.log(fullPrompt);
-    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt);
+    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt, true);
     console.log(result);
     
     if (result.success) {
