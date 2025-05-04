@@ -11,7 +11,7 @@ const GitCommitData = z.object({
 });
 
 // Add OpenAI API support
-async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatInstructions = null, commitMessageFormatInstructions = null) {
+async function generateGitCommitData(apiKey, prompt, summary, diffOutput, branchFormatInstructions = null, commitMessageFormatInstructions = null) {
   try {
     const client = new OpenAI({
       apiKey: apiKey
@@ -21,7 +21,7 @@ async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatIns
     const defaultBranchInstructions = "The branch name should be a simple name like \"feature/add-user-authentication\" or \"fix/typo-in-login-page\"";
     
     // Default commit message format instructions
-    const defaultCommitMessageInstructions = "The message should be a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed based off the prompt. The first summary line should be no more than 50 characters";
+    const defaultCommitMessageInstructions = "The message should be a short summary line, followed by two newlines, then a short paragraph explaining WHY the change was needed based off the prompt. If a summary is provided, use it to create more short paragraphs or bullet points explaining the changes. The first summary line should be no more than 50 characters. Use the imperative mood for the message (e.g. \"Add user authentication system\" instead of \"Adding user authentication system\").";
     
     // Use custom instructions if provided, otherwise use default
     const branchInstructions = branchFormatInstructions || defaultBranchInstructions;
@@ -32,10 +32,10 @@ async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatIns
       instructions: 'You are a version control assistant that helps with Git branch committing',
       input: [
         {
-          role: "system", content: "Extract the git commit data from the prompt and diff output. Return the branch name and commit message." },
+          role: "system", content: "Extract the git commit data from the prompt, summary and diff output. Return the branch name and commit message." },
         {
           role: "user",
-          content: `Determine from this AI prompt and diff output what the git commit data should be.\n\n${commitMessageInstructions}\n\n${branchInstructions}\n\nHere is the data:\n\nPrompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
+          content: `Determine from this AI prompt, summary and diff output what the git commit data should be.\n\n${commitMessageInstructions}\n\n${branchInstructions}\n\nHere is the data:\n\nPrompt: ${prompt}\n\nSummary: ${summary}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
         },
       ],
       text: {
@@ -264,12 +264,12 @@ export class Git {
   }
 
 
-  static async updateBranch(currentWorkingDirectory, prompt, useAi = false) {
+  static async updateBranch(currentWorkingDirectory, prompt, summary, useAi = false) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
 
-      writeLog(`Updating branch with prompt: ${prompt}`);
+      writeLog(`Updating branch with prompt: ${prompt}\nSummary: ${summary}`);
 
       // Add all changes to staging
       execSyncSafe('git add .', { encoding: 'utf8' });
@@ -315,7 +315,8 @@ export class Git {
         detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
         gitCommitData = await generateGitCommitData(
           openAIKey, 
-          prompt, 
+          prompt,
+          summary,
           detailedDiffOutput, 
           branchFormatInstructions, 
           commitMessageFormatInstructions
