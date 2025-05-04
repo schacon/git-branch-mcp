@@ -3,6 +3,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { execSync } from 'child_process';
 import fs from 'fs';
+import CommitMessageFormatter from './commitMessageFormatter.js';
 
 const GitCommitData = z.object({
   branchName: z.string(),
@@ -222,10 +223,6 @@ export class Git {
     fs.unlinkSync(tempFilePath);
   }
 
-  // hard wrap all lines of the message at 72 characters
-  static formatCommitMessage(message) {
-    return message.replace(/^(.{1,72})(.*)$/gm, '$1\n$2');
-  }
 
   static async updateBranch(currentWorkingDirectory, prompt, useAi = false) {
     try {
@@ -305,7 +302,8 @@ export class Git {
         }
       }
 
-      Git.commitWithMessage(Git.formatCommitMessage(message));
+      const formattedMessage = CommitMessageFormatter.formatForCommit(message);
+      Git.commitWithMessage(formattedMessage);
 
       // Get commit count info after successful commit
       const commitsAhead = Git.getCommitsAheadOfUpstream(); // getCommitsAheadOfUpstream handles cwd
