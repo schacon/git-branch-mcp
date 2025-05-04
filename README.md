@@ -79,3 +79,48 @@ Merges the current branch into the default branch (main or master) and optionall
 ### git.summarizeBranch
 
 Shows a list of the current commits on the active branch and information about the branch.
+
+## Configuration Files
+
+You can customize how Git Branch MCP generates branch names and commit messages by using the following configuration files:
+
+### .git/branch-format
+
+This file contains instructions for how branch names should be formatted when using the AI generation feature. When present, it overrides the default branch naming instructions.
+
+To set up:
+
+```bash
+# Create the file in your .git directory
+echo "Branch names should be in format 'type/short-description' where type is one of: feature, bugfix, hotfix, refactor, docs" > .git/branch-format
+```
+
+Example content:
+
+```
+Branch names should follow the pattern: 'team/feature-name' where team is one of: frontend, backend, devops, qa
+```
+
+### .git/commit-message-format
+
+This file contains instructions for how commit messages should be formatted when using the AI generation feature. When present, it overrides the default commit message format instructions.
+
+To set up:
+
+```bash
+# Create the file in your .git directory
+echo "Commit messages should follow conventional commits format: type(scope): description" > .git/commit-message-format
+```
+
+Example content:
+
+```
+Commit messages must follow the Conventional Commits specification:
+- First line is type(scope): description (50 chars max)
+- Types allowed: feat, fix, docs, style, refactor, perf, test, chore
+- Leave a blank line after the first line
+- Body should explain WHY this change was needed, wrapped at 72 chars
+- Use imperative present tense (e.g., "add" not "adds" or "added")
+```
+
+When these files are present in your repository, Git Branch MCP will read their contents and pass them to the AI model to guide the generation of branch names and commit messages according to your team's preferences.
