@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "npx @modelcontextprotocol/inspector node src/index.js",
+    "test-i": "npx @modelcontextprotocol/inspector node src/index.js",
     "jest": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {

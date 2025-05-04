@@ -305,11 +305,14 @@ export class Git {
       // Get commit count info after successful commit
       const commitsAhead = Git.getCommitsAheadOfUpstream(); // getCommitsAheadOfUpstream handles cwd
       writeLog(commitsAhead);
-     
+    
+      const branchName = Git.getCurrentBranch();
       // final message includes: branch name, commits ahead, and commit message
       const finalMessage = `Successfully committed changes.
-Branch: ${Git.getCurrentBranch()} 
-Commit list:
+
+Branch: ${branchName}
+
+Commits currently on this branch:
 ${commitsAhead.commitList.map(commit => `${commit.hash} - ${commit.message}`).join('\n')}
 
 Commit message:
@@ -318,7 +321,8 @@ ${message}
 
       return {
         success: true,
-        message: finalMessage, // Include branch switching message if relevant
+        branchName: branchName,
+        message: finalMessage,
       };
     } catch (error) {
        // Try to provide a more specific error message
