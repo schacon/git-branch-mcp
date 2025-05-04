@@ -11,7 +11,7 @@ const GitCommitData = z.object({
 });
 
 // Add OpenAI API support
-async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatInstructions = null) {
+async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatInstructions = null, commitMessageFormatInstructions = null) {
   try {
     const client = new OpenAI({
       apiKey: apiKey
@@ -20,17 +20,22 @@ async function generateGitCommitData(apiKey, prompt, diffOutput, branchFormatIns
     // Default branch name instructions
     const defaultBranchInstructions = "The branch name should be a simple name like \"feature/add-user-authentication\" or \"fix/typo-in-login-page\"";
     
+    // Default commit message format instructions
+    const defaultCommitMessageInstructions = "The message should be a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed based off the prompt. The first summary line should be no more than 50 characters";
+    
     // Use custom instructions if provided, otherwise use default
     const branchInstructions = branchFormatInstructions || defaultBranchInstructions;
+    const commitMessageInstructions = commitMessageFormatInstructions || defaultCommitMessageInstructions;
     
     const response = await client.responses.create({
       model: 'gpt-4o',
       instructions: 'You are a version control assistant that helps with Git branch committing',
       input: [
-        { role: "system", content: "Extract the git commit data from the prompt and diff output. Format commit messages with a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed. Example:\n\nAdd user authentication system\n\nImplement a secure authentication flow to address increasing security concerns and enable user-specific features that were previously impossible without a proper identity system." },
+        {
+          role: "system", content: "Extract the git commit data from the prompt and diff output. Return the branch name and commit message." },
         {
           role: "user",
-          content: `Determine from this AI prompt and diff output what the git commit data should be. The message should be a short summary line, followed by two newlines, then a paragraph explaining WHY the change was needed based off the prompt. The first summary line should be no more than 50 characters. ${branchInstructions}. Here is the data:\n\nPrompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
+          content: `Determine from this AI prompt and diff output what the git commit data should be.\n\n${commitMessageInstructions}\n\n${branchInstructions}\n\nHere is the data:\n\nPrompt: ${prompt}\n\nDiff:\n\`\`\`\n${diffOutput}\n\`\`\`\n\n`
         },
       ],
       text: {
@@ -89,6 +94,21 @@ function readBranchFormatInstructions() {
     return null;
   } catch (error) {
     writeLog(`Error reading branch format file: ${error.message}`);
+    return null;
+  }
+}
+
+// Function to read commit message format instructions from .git/commit-message-format file
+function readCommitMessageFormatInstructions() {
+  try {
+    if (fs.existsSync('.git/commit-message-format')) {
+      const instructions = fs.readFileSync('.git/commit-message-format', 'utf8').trim();
+      writeLog(`Read commit message format instructions: ${instructions}`);
+      return instructions.length > 0 ? instructions : null;
+    }
+    return null;
+  } catch (error) {
+    writeLog(`Error reading commit message format file: ${error.message}`);
     return null;
   }
 }
@@ -284,13 +304,22 @@ export class Git {
 
       // Read custom branch format instructions if available
       const branchFormatInstructions = readBranchFormatInstructions();
+      
+      // Read custom commit message format instructions if available
+      const commitMessageFormatInstructions = readCommitMessageFormatInstructions();
 
       // Generate git commit data with OpenAI if API key is available and useAi is true
       let gitCommitData = null;
       
       if (openAIKey && useAi) {
         detailedDiffOutput = execSyncSafe('git diff --staged', { encoding: 'utf8' }).stdout.trim();
-        gitCommitData = await generateGitCommitData(openAIKey, prompt, detailedDiffOutput, branchFormatInstructions);
+        gitCommitData = await generateGitCommitData(
+          openAIKey, 
+          prompt, 
+          detailedDiffOutput, 
+          branchFormatInstructions, 
+          commitMessageFormatInstructions
+        );
         writeLog(`branch name: ${gitCommitData.branchName}`);
         writeLog(`commit message: ${gitCommitData.commitMessage}`);
       }
