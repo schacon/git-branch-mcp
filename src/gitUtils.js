@@ -222,6 +222,11 @@ export class Git {
     fs.unlinkSync(tempFilePath);
   }
 
+  // hard wrap all lines of the message at 72 characters
+  static formatCommitMessage(message) {
+    return message.replace(/^(.{1,72})(.*)$/gm, '$1\n$2');
+  }
+
   static async updateBranch(currentWorkingDirectory, prompt, useAi = false) {
     try {
       // cd to the current working directory
@@ -300,7 +305,7 @@ export class Git {
         }
       }
 
-      Git.commitWithMessage(message);
+      Git.commitWithMessage(Git.formatCommitMessage(message));
 
       // Get commit count info after successful commit
       const commitsAhead = Git.getCommitsAheadOfUpstream(); // getCommitsAheadOfUpstream handles cwd
