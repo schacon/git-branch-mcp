@@ -736,6 +736,209 @@ ${message}
       };
     }
   }
+
+  static absorb(currentWorkingDirectory) {
+    try {
+      // cd to the current working directory
+      process.chdir(currentWorkingDirectory);
+
+      // Get current branch name
+      const currentBranch = Git.getCurrentBranch();
+      
+      if (!currentBranch) {
+        return {
+          success: false,
+          message: "Failed to determine current branch"
+        };
+      }
+      
+      // Check if we're on master or main
+      if (currentBranch === 'master' || currentBranch === 'main') {
+        return {
+          success: false,
+          message: `Cannot absorb changes on default branch '${currentBranch}'. Please create a feature branch first.`
+        };
+      }
+      
+      // Get status to see which files are modified
+      const statusOutput = execSyncSafe('git status --porcelain', { encoding: 'utf8' }).stdout.trim();
+      
+      if (!statusOutput) {
+        return {
+          success: true,
+          message: "No changes detected to absorb.",
+          appliedFixups: 0
+        };
+      }
+      
+      // Parse the status output to get modified files
+      const modifiedFiles = [];
+      const statusLines = statusOutput.split('\n');
+      
+      for (const line of statusLines) {
+        if (line.trim()) {
+          const status = line.substring(0, 2).trim();
+          const filePath = line.substring(3).trim();
+          
+          // Handle renamed files that appear as "R old -> new"
+          let actualPath = filePath;
+          if (filePath.includes(' -> ')) {
+            actualPath = filePath.split(' -> ')[1];
+          }
+          
+          modifiedFiles.push({
+            status,
+            path: actualPath,
+            isStaged: status[0] !== ' ' && status[0] !== '?' // Check if the file is staged
+          });
+        }
+      }
+      
+      // If nothing is staged, stage all modified files
+      const hasStaged = modifiedFiles.some(file => file.isStaged);
+      if (!hasStaged) {
+        execSyncSafe('git add --all', { encoding: 'utf8' });
+        // Update the staging status after adding
+        for (const file of modifiedFiles) {
+          if (file.status !== '??') { // Untracked files remain untracked unless explicitly added
+            file.isStaged = true;
+          }
+        }
+      }
+      
+      // Get a filtered list of files that are staged
+      const stagedFiles = modifiedFiles.filter(file => file.isStaged).map(file => file.path);
+      
+      if (stagedFiles.length === 0) {
+        return {
+          success: true,
+          message: "No staged changes to absorb.",
+          appliedFixups: 0
+        };
+      }
+      
+      // Get commit history with files changed per commit
+      const commitsOutput = execSyncSafe('git log --name-only --pretty=format:"%h|%s" HEAD~20..HEAD', 
+        { encoding: 'utf8' }).stdout.trim();
+      
+      // Parse the output to get commits and their changed files
+      const commits = [];
+      const commitLines = commitsOutput.split('\n');
+      let currentCommit = null;
+      
+      for (const line of commitLines) {
+        if (line.includes('|')) {
+          // This is a commit header line
+          const [hash, subject] = line.split('|');
+          currentCommit = {
+            hash,
+            subject,
+            files: []
+          };
+          commits.push(currentCommit);
+        } else if (line.trim() && currentCommit) {
+          // This is a file path
+          currentCommit.files.push(line.trim());
+        }
+      }
+      
+      // Match each modified file to the most recent commit that touched it
+      const fixupCommits = new Map(); // Map of commit hash to list of files to fixup
+      
+      for (const file of stagedFiles) {
+        let matchedCommit = null;
+        
+        // Find the most recent commit that touched this file
+        for (const commit of commits) {
+          if (commit.files.includes(file)) {
+            matchedCommit = commit;
+            break;
+          }
+        }
+        
+        if (matchedCommit) {
+          if (!fixupCommits.has(matchedCommit.hash)) {
+            fixupCommits.set(matchedCommit.hash, {
+              subject: matchedCommit.subject,
+              files: []
+            });
+          }
+          fixupCommits.get(matchedCommit.hash).files.push(file);
+        }
+      }
+      
+      // If we couldn't match any files to existing commits, just do a regular commit
+      if (fixupCommits.size === 0) {
+        return {
+          success: false,
+          message: "Could not match any modified files to existing commits. Please use a regular commit instead.",
+          appliedFixups: 0
+        };
+      }
+      
+      // Create fixup commits
+      let fixupsApplied = 0;
+      const fixupDetails = [];
+      
+      for (const [commitHash, fixupData] of fixupCommits.entries()) {
+        // Only stage the files for this specific commit
+        execSyncSafe('git reset', { encoding: 'utf8' }); // Unstage everything
+        for (const file of fixupData.files) {
+          execSyncSafe(`git add "${file}"`, { encoding: 'utf8' });
+        }
+        
+        // Create the fixup commit
+        const result = execSyncSafe(`git commit --fixup=${commitHash}`, { encoding: 'utf8' });
+        
+        if (result.status === 0) {
+          fixupsApplied++;
+          fixupDetails.push({
+            targetCommit: commitHash,
+            targetSubject: fixupData.subject,
+            files: fixupData.files
+          });
+        }
+      }
+      
+      // If any fixups were created, suggest running autosquash
+      let resultMessage = '';
+      
+      if (fixupsApplied > 0) {
+        resultMessage = `Created ${fixupsApplied} fixup commit${fixupsApplied !== 1 ? 's' : ''} targeting the following original commits:\n\n`;
+        
+        for (const fixup of fixupDetails) {
+          resultMessage += `- ${fixup.targetCommit} "${fixup.targetSubject}"\n`;
+          resultMessage += `  Files: ${fixup.files.join(', ')}\n`;
+        }
+        
+        resultMessage += `\nTo incorporate these fixups into the original commits, you can run:\n`;
+        resultMessage += `git rebase -i --autosquash ${commits[commits.length - 1].hash}~1`;
+      } else {
+        resultMessage = `No fixup commits were created. All files remain staged.`;
+      }
+      
+      return {
+        success: true,
+        message: resultMessage,
+        appliedFixups: fixupsApplied,
+        fixupDetails
+      };
+      
+    } catch (error) {
+      // Try to provide a more specific error message
+      let errorMessage = `Failed to absorb changes: ${error.message}`;
+      if (error.stderr) {
+        errorMessage += `\nStderr: ${error.stderr}`;
+      }
+      if (error.stdout) {
+        errorMessage += `\nStdout: ${error.stdout}`;
+      }
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+  }
 }
 
 function execSyncSafe(cmd, opts = {}) {
