@@ -127,6 +127,28 @@ server.tool("git.summarizeBranch",
   }
 );
 
+// Add a git absorb tool
+server.tool("git.absorb",
+  "Intelligently absorbs uncommitted changes into appropriate existing commits as fixup commits",
+  {
+    currentWorkingDirectory: z.string(),
+   },
+  async ({ currentWorkingDirectory }) => {
+    // Call the absorb method from Git utility
+    const result = await Git.absorb(currentWorkingDirectory);
+    
+    if (result.success) {
+      return {
+        content: [{ type: "text", text: result.message }]
+      };
+    } else {
+      return {
+        content: [{ type: "text", text: `Failed to absorb changes: ${result.message}` }]
+      };
+    }
+  }
+);
+
 // Start receiving messages on stdin and sending messages on stdout
 const transport = new StdioServerTransport();
 
