@@ -362,6 +362,45 @@ export class Git {
     fs.unlinkSync(tempFilePath);
   }
 
+  // Helper function to log prompts and commit hashes to history file
+  static logPromptToHistory(prompt, commitHash, summary = '') {
+    try {
+      const historyFilePath = '.git/prompt-history.json';
+      
+      // Initialize history data structure
+      let historyData = [];
+      
+      // Read existing history file if it exists
+      if (fs.existsSync(historyFilePath)) {
+        try {
+          const fileContent = fs.readFileSync(historyFilePath, 'utf8');
+          historyData = JSON.parse(fileContent);
+        } catch (parseError) {
+          writeLog(`Error parsing prompt history file: ${parseError.message}`);
+          // If file exists but is corrupted, initialize with empty array
+          historyData = [];
+        }
+      }
+      
+      // Add new entry
+      historyData.push({
+        timestamp: new Date().toISOString(),
+        prompt,
+        summary,
+        commitHash
+      });
+      
+      // Write updated history back to file
+      fs.writeFileSync(historyFilePath, JSON.stringify(historyData, null, 2));
+      
+      writeLog(`Logged prompt and commit hash to history: ${prompt.substring(0, 30)}... -> ${commitHash}`);
+      return true;
+    } catch (error) {
+      writeLog(`Error logging prompt to history: ${error.message}`);
+      return false;
+    }
+  }
+
   static async updateBranch(currentWorkingDirectory, prompt, summary, chatId, useAi = false) {
     try {
       // cd to the current working directory
@@ -455,6 +494,12 @@ export class Git {
 
       const formattedMessage = CommitMessageFormatter.formatForCommit(message);
       Git.commitWithMessage(formattedMessage);
+
+      // Get the hash of the newly created commit
+      const latestCommitHash = execSyncSafe('git rev-parse HEAD', { encoding: 'utf8' }).stdout.trim();
+      
+      // Log prompt and commit hash to history file
+      Git.logPromptToHistory(prompt, latestCommitHash, summary);
 
       // Get commit count info after successful commit
       const commitsAhead = Git.getCommitsAheadOfUpstream(); // getCommitsAheadOfUpstream handles cwd
