@@ -1,11 +1,8 @@
 import fs from 'fs-extra';
 import path from 'path';
 import { execSync } from 'child_process';
-import { Git } from '../src/gitUtils.js';
+import { Git, execSyncSafe } from '../src/gitUtils.js';
 import os from 'os';
-
-// Set a longer timeout for all tests in this file
-jest.setTimeout(30000); // 30 seconds
 
 describe('AI.generateCommitMessage', () => {
   let tempDir;
@@ -62,12 +59,9 @@ describe('AI.generateCommitMessage', () => {
     // Verify the file was committed
     const files = execSync('git ls-tree -r HEAD --name-only', { cwd: tempDir, encoding: 'utf8' });
     expect(files).toContain('test.js');
-  });
+  }, 30000); // Set timeout to 30 seconds
 
   test.only('should absorb changes', async () => {
-    // Set a longer timeout for this specific test that's failing
-    jest.setTimeout(60000); // 60 seconds
-    
     process.chdir(tempDir);
 
     // Make a change to the repository
@@ -96,7 +90,7 @@ describe('AI.generateCommitMessage', () => {
 
     fs.writeFileSync('index.js', `console.log("Main stuff!");`);
 
-    const lastCommit2 = execSync('git commit -a -m "add main index file"', { encoding: 'utf8' }).trim();
+    const lastCommit2 = execSyncSafe('git add index.js && git commit -a -m "add main index file"', { encoding: 'utf8' });
     console.log(lastCommit2);
 
     fs.writeFileSync('index.js', `console.log("Main stuff!");\n console.log("Main stuff again!");`);
@@ -105,7 +99,7 @@ describe('AI.generateCommitMessage', () => {
     const absorbResult2 = await Git.absorb(tempDir);
     console.log(absorbResult2);
 
-    const lastCommit3 = execSync('git log --oneline --decorate', { encoding: 'utf8' }).trim();
+    const lastCommit3 = execSyncSafe('git log --name-only --oneline --decorate', { encoding: 'utf8' }).stdout.trim();
     console.log(lastCommit3);
-  });
+  }, 60000); // Set timeout to 60 seconds
 }); 
