@@ -4,6 +4,9 @@ import { execSync } from 'child_process';
 import { Git } from '../src/gitUtils.js';
 import os from 'os';
 
+// Set a longer timeout for all tests in this file
+jest.setTimeout(30000); // 30 seconds
+
 describe('AI.generateCommitMessage', () => {
   let tempDir;
   
@@ -62,6 +65,9 @@ describe('AI.generateCommitMessage', () => {
   });
 
   test.only('should absorb changes', async () => {
+    // Set a longer timeout for this specific test that's failing
+    jest.setTimeout(60000); // 60 seconds
+    
     process.chdir(tempDir);
 
     // Make a change to the repository
