@@ -11,10 +11,10 @@ const server = new McpServer({
 
 // Add an addition tool
 server.tool("git.updateBranch",
-  "Update commits on the current branch based on the prompt used to modify the codebase and a summary of the changes made. The chatId should be a unique identifier that chnages when a new chat is created in the agent.",
+  "Update commits on the current branch based on the prompt used to modify the codebase and a summary of the changes made. The chatTitle should be the title that the agent is using to describe the chat.",
   {
     fullPrompt: z.string(),
-    chatId: z.string(),
+    chatTitle: z.string(),
     changesSummary: z.string(),
     currentWorkingDirectory: z.string(),
    },
