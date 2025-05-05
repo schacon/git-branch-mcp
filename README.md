@@ -72,6 +72,10 @@ with the changes that your agent is making to the codebase.
 
 Updates commits on the current branch based on the summary of the prompt used to modify the codebase. If on the main/master branch, it creates a new feature branch based on the summary.
 
+### git.absorb
+
+Absorbs uncommitted changes into appropriate existing commits without creating new commits.
+
 ### git.integrateBranch
 
 Merges the current branch into the default branch (main or master) and optionally deletes the current branch.
