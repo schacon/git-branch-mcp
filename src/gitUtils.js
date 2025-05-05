@@ -10,6 +10,13 @@ const GitCommitData = z.object({
   commitMessage: z.string()
 });
 
+const GitAbsorbSuggestion = z.object({
+  absorbFiles: z.array(z.object({
+    commitHash: z.string(),
+    files: z.array(z.string())
+  }))
+});
+
 // Add OpenAI API support
 async function generateGitCommitData(apiKey, prompt, summary, diffOutput, branchFormatInstructions = null, commitMessageFormatInstructions = null) {
   try {
@@ -62,6 +69,51 @@ async function generateGitCommitData(apiKey, prompt, summary, diffOutput, branch
       commitMessage: prompt,
     };
   }
+}
+
+async function getAiAbsorbSuggestion(apiKey, commitsOutput, commitHashes, modifiedFiles) {
+  const client = new OpenAI({
+    apiKey: apiKey
+  });
+
+  const modifiedFilesString = modifiedFiles.map(file => `- ${file}`).join("\n");
+  const commitHashesString = commitHashes.map(hash => `- ${hash}`).join("\n");
+
+const aiPrompt =        `Analyze the git commit history and suggest which modified files should be absorbed into which commits.
+        
+For each modified file, determine which commit it should be associated with as a fixup.
+
+Git commit history: 
+${commitsOutput}
+
+Git commit hashes:
+${commitHashesString}
+
+Modified files: 
+${modifiedFilesString}
+
+Return a JSON object with an 'absorbFiles' array containing objects with 'commitHash' and 'files' properties where each file is one of the modified files in the modifiedFiles array and each commitHash is one of the commit hashes in the commitsOutput array.`
+  console.log(aiPrompt);
+
+  const response = await client.responses.create({
+    model: 'gpt-4o',
+    instructions: 'You are a version control assistant that helps with Git branch committing',
+    input: [
+      {
+        role: "system", content: "Given the git commit history and the modified files, return a list of files to absorb into the commit history." },
+      {
+        role: "user",
+        content: aiPrompt
+      },
+    ],
+    text: {
+      format: zodTextFormat(GitAbsorbSuggestion, "gitAbsorbSuggestion"),
+    },
+  });
+
+  const gitAbsorbSuggestion = JSON.parse(response.output_text);
+
+  return gitAbsorbSuggestion;
 }
 
 // Helper to generate a simple branch name from prompt
@@ -125,6 +177,24 @@ export class Git {
     }
   }
 
+  static getUpstreamBranch() {
+    try {
+      let upstreamBranch = null;
+      if (Git.remoteBranchExists('main')) { // remoteBranchExists now handles cwd internally
+        upstreamBranch = 'origin/main';
+      } else if (Git.remoteBranchExists('master')) { // remoteBranchExists now handles cwd internally
+        upstreamBranch = 'origin/master';
+      } else if (Git.branchExists('main')) {
+        upstreamBranch = 'main';
+      } else if (Git.branchExists('master')) {
+        upstreamBranch = 'master';
+      }
+      return upstreamBranch;
+    } catch (error) {
+      return null;
+    }
+  }
+
   // Add function to check if OpenAI API key is configured
   static getOpenAIApiKey() {
     try {
@@ -167,19 +237,8 @@ export class Git {
   static getCommitsAheadOfUpstream() {
     try {
       // Check which upstream branch exists (origin/main or origin/master)
-      let upstreamBranch = null;
+      let upstreamBranch = Git.getUpstreamBranch();
       
-      // Need to pass repoPath to remoteBranchExists if it uses execSync internally (which it does)
-      if (Git.remoteBranchExists('main')) { // remoteBranchExists now handles cwd internally
-        upstreamBranch = 'origin/main';
-      } else if (Git.remoteBranchExists('master')) { // remoteBranchExists now handles cwd internally
-        upstreamBranch = 'origin/master';
-      } else if (Git.branchExists('main')) {
-        upstreamBranch = 'main';
-      } else if (Git.branchExists('master')) {
-        upstreamBranch = 'master';
-      }
-
       if (!upstreamBranch) {
         return {
           success: false,
@@ -262,7 +321,6 @@ export class Git {
     // delete the temp file
     fs.unlinkSync(tempFilePath);
   }
-
 
   static async updateBranch(currentWorkingDirectory, prompt, summary, useAi = false) {
     try {
@@ -738,7 +796,7 @@ ${message}
     }
   }
 
-  static absorb(currentWorkingDirectory) {
+  static async absorb(currentWorkingDirectory) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
@@ -760,6 +818,9 @@ ${message}
           message: `Cannot absorb changes on default branch '${currentBranch}'. Please create a feature branch first.`
         };
       }
+
+      // unstage anything that is staged
+      execSyncSafe('git reset HEAD', { encoding: 'utf8' });
       
       // Get status to see which files are modified
       const statusOutput = execSyncSafe('git status --porcelain', { encoding: 'utf8' }).stdout.trim();
@@ -779,7 +840,7 @@ ${message}
       for (const line of statusLines) {
         if (line.trim()) {
           const status = line.substring(0, 2).trim();
-          const filePath = line.substring(3).trim();
+          const filePath = line.substring(2).trim();
           
           // Handle renamed files that appear as "R old -> new"
           let actualPath = filePath;
@@ -787,104 +848,65 @@ ${message}
             actualPath = filePath.split(' -> ')[1];
           }
           
-          modifiedFiles.push({
-            status,
-            path: actualPath,
-            isStaged: status[0] !== ' ' && status[0] !== '?' // Check if the file is staged
-          });
+          modifiedFiles.push(actualPath);
         }
       }
-      
-      // If nothing is staged, stage all modified files
-      const hasStaged = modifiedFiles.some(file => file.isStaged);
-      if (!hasStaged) {
-        execSyncSafe('git add --all', { encoding: 'utf8' });
-        // Update the staging status after adding
-        for (const file of modifiedFiles) {
-          if (file.status !== '??') { // Untracked files remain untracked unless explicitly added
-            file.isStaged = true;
-          }
-        }
-      }
-      
-      // Get a filtered list of files that are staged
-      const stagedFiles = modifiedFiles.filter(file => file.isStaged).map(file => file.path);
-      
-      if (stagedFiles.length === 0) {
-        return {
-          success: true,
-          message: "No staged changes to absorb.",
-          appliedFixups: 0
-        };
-      }
-      
-      // Get commit history with files changed per commit
-      const commitsOutput = execSyncSafe('git log --name-only --pretty=format:"%h|%s" HEAD~20..HEAD', 
+     
+      const upstreamBranch = Git.getUpstreamBranch(currentBranch);
+
+      // Get number of commits
+      const commitHashes = execSyncSafe(`git rev-list ${upstreamBranch}..HEAD`, 
         { encoding: 'utf8' }).stdout.trim();
       
-      // Parse the output to get commits and their changed files
-      const commits = [];
-      const commitLines = commitsOutput.split('\n');
-      let currentCommit = null;
-      
-      for (const line of commitLines) {
-        if (line.includes('|')) {
-          // This is a commit header line
-          const [hash, subject] = line.split('|');
-          currentCommit = {
-            hash,
-            subject,
-            files: []
-          };
-          commits.push(currentCommit);
-        } else if (line.trim() && currentCommit) {
-          // This is a file path
-          currentCommit.files.push(line.trim());
-        }
-      }
-      
-      // Match each modified file to the most recent commit that touched it
-      const fixupCommits = new Map(); // Map of commit hash to list of files to fixup
-      
-      for (const file of stagedFiles) {
-        let matchedCommit = null;
-        
-        // Find the most recent commit that touched this file
-        for (const commit of commits) {
-          if (commit.files.includes(file)) {
-            matchedCommit = commit;
-            break;
-          }
-        }
-        
-        if (matchedCommit) {
-          if (!fixupCommits.has(matchedCommit.hash)) {
-            fixupCommits.set(matchedCommit.hash, {
-              subject: matchedCommit.subject,
-              files: []
-            });
-          }
-          fixupCommits.get(matchedCommit.hash).files.push(file);
-        }
-      }
-      
-      // If we couldn't match any files to existing commits, just do a regular commit
-      if (fixupCommits.size === 0) {
+      const commitHashesArray = commitHashes.split('\n');
+      const commitCount = commitHashesArray.length;
+
+      if (commitCount === '0') {
         return {
-          success: false,
-          message: "Could not match any modified files to existing commits. Please use a regular commit instead.",
+          success: true,
+          message: "No changes detected to absorb.",
           appliedFixups: 0
         };
       }
+
+      if (commitCount === '1') {
+        // Amend the commit
+        execSyncSafe(`git commit --amend --no-edit`, { encoding: 'utf8' });
+        return {
+          success: true,
+          message: "Only one commit detected. Amended commit.",
+          appliedFixups: 1
+        };
+      }
+
+      // Get commit history with files changed per commit
+      const commitsOutput = execSyncSafe(`git log --name-only ${upstreamBranch}..HEAD`, 
+        { encoding: 'utf8' }).stdout.trim();
       
+      const openAIKey = Git.getOpenAIApiKey();
+      console.log(openAIKey);
+      if (!openAIKey) {
+        return {
+          success: false,
+          message: "OpenAI API key not configured"
+        };
+      }
+    
       // Create fixup commits
       let fixupsApplied = 0;
-      const fixupDetails = [];
-      
-      for (const [commitHash, fixupData] of fixupCommits.entries()) {
+
+      const aiAbsorbSuggestion = await getAiAbsorbSuggestion(openAIKey, commitsOutput, commitHashesArray, modifiedFiles);
+
+      let message = "Successfully absorbed changes.";
+
+      // Process each suggested absorption
+      for (const suggestion of aiAbsorbSuggestion.absorbFiles) {
+        const commitHash = suggestion.commitHash;
+        const files = suggestion.files;
+        
         // Only stage the files for this specific commit
         execSyncSafe('git reset', { encoding: 'utf8' }); // Unstage everything
-        for (const file of fixupData.files) {
+        for (const file of files) {
           execSyncSafe(`git add "${file}"`, { encoding: 'utf8' });
         }
         
@@ -893,36 +915,24 @@ ${message}
         
         if (result.status === 0) {
           fixupsApplied++;
-          fixupDetails.push({
-            targetCommit: commitHash,
-            targetSubject: fixupData.subject,
-            files: fixupData.files
+          message += `\nFixup commit: ${commitHash}`;
+          files.forEach(file => {
+            message += `\n  ${file}`;
           });
         }
       }
-      
-      // If any fixups were created, suggest running autosquash
-      let resultMessage = '';
-      
-      if (fixupsApplied > 0) {
-        resultMessage = `Created ${fixupsApplied} fixup commit${fixupsApplied !== 1 ? 's' : ''} targeting the following original commits:\n\n`;
-        
-        for (const fixup of fixupDetails) {
-          resultMessage += `- ${fixup.targetCommit} "${fixup.targetSubject}"\n`;
-          resultMessage += `  Files: ${fixup.files.join(', ')}\n`;
-        }
-        
-        resultMessage += `\nTo incorporate these fixups into the original commits, you can run:\n`;
-        resultMessage += `git rebase -i --autosquash ${commits[commits.length - 1].hash}~1`;
-      } else {
-        resultMessage = `No fixup commits were created. All files remain staged.`;
+
+      // run git rebase --autosquash on the merge-base of the current branch and the upstream branch
+      const mergeBase = execSyncSafe(`git merge-base ${currentBranch} ${upstreamBranch}`, { encoding: 'utf8' });
+      if (mergeBase.status === 0) {
+        const mergeBaseHash = mergeBase.stdout.trim();
+        execSyncSafe(`git rebase --autosquash ${mergeBaseHash}`, { encoding: 'utf8' });
       }
-      
+
       return {
         success: true,
-        message: resultMessage,
+        message: message,
         appliedFixups: fixupsApplied,
-        fixupDetails
       };
       
     } catch (error) {
@@ -942,7 +952,7 @@ ${message}
   }
 }
 
-function execSyncSafe(cmd, opts = {}) {
+export function execSyncSafe(cmd, opts = {}) {
   writeLog(`Executing: ${cmd}`);
   try {
     const out = execSync(cmd, { encoding: 'utf8', ...opts });

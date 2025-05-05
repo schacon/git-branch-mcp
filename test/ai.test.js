@@ -8,12 +8,6 @@ describe('AI.generateCommitMessage', () => {
   let tempDir;
   
   beforeEach(() => {
-    // assert that openai is available
-    const openaiKey = Git.getOpenAIApiKey();
-    if (!openaiKey) {
-      throw new Error('OPENAI_API_KEY is not set');
-    }
-
     // Create a temporary directory for the test
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'git-test-'));
     
@@ -65,5 +59,47 @@ describe('AI.generateCommitMessage', () => {
     // Verify the file was committed
     const files = execSync('git ls-tree -r HEAD --name-only', { cwd: tempDir, encoding: 'utf8' });
     expect(files).toContain('test.js');
+  });
+
+  test.only('should absorb changes', async () => {
+    process.chdir(tempDir);
+
+    // Make a change to the repository
+    fs.writeFileSync('test.js', 'console.log("Hello, world!");');
+    
+    // Call updateBranch with a summary
+    const prompt = 'Add test script';
+    await Git.updateBranch(tempDir, prompt, true); // with AI
+
+    // Make a change to the repository
+    fs.writeFileSync('test.js', `console.log("Hello, world!");\n console.log("Hello, again!");`);
+
+    // Call absorb
+    const absorbResult = await Git.absorb(tempDir);
+
+    // Verify the result
+    expect(absorbResult.success).toBe(true);
+    expect(absorbResult.appliedFixups).toBe(1);
+
+    // Verify the commit was made
+    const lastCommit = execSync('git log --oneline --decorate', { encoding: 'utf8' }).trim();
+    const commitCount = lastCommit.split('\n').length;
+
+    console.log(lastCommit);
+    expect(commitCount).toBe(2);
+
+    fs.writeFileSync('index.js', `console.log("Main stuff!");`);
+
+    const lastCommit2 = execSync('git commit -a -m "add main index file"', { encoding: 'utf8' }).trim();
+    console.log(lastCommit2);
+
+    fs.writeFileSync('index.js', `console.log("Main stuff!");\n console.log("Main stuff again!");`);
+    fs.writeFileSync('test.js', `console.log("Test stuff!");\n console.log("Test even more stuff again!");`);
+
+    const absorbResult2 = await Git.absorb(tempDir);
+    console.log(absorbResult2);
+
+    const lastCommit3 = execSync('git log --oneline --decorate', { encoding: 'utf8' }).trim();
+    console.log(lastCommit3);
   });
 }); 

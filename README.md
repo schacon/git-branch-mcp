@@ -124,3 +124,4 @@ Commit messages must follow the Conventional Commits specification:
 ```
 
 When these files are present in your repository, Git Branch MCP will read their contents and pass them to the AI model to guide the generation of branch names and commit messages according to your team's preferences.
+test
