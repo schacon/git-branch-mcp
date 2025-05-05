@@ -362,12 +362,12 @@ export class Git {
     fs.unlinkSync(tempFilePath);
   }
 
-  static async updateBranch(currentWorkingDirectory, prompt, summary, useAi = false) {
+  static async updateBranch(currentWorkingDirectory, prompt, summary, chatId, useAi = false) {
     try {
       // cd to the current working directory
       process.chdir(currentWorkingDirectory);
 
-      writeLog(`Updating branch with prompt: ${prompt}\nSummary: ${summary}`);
+      writeLog(`Updating branch with prompt: ${prompt}\nSummary: ${summary}\nChat ID: ${chatId}`);
 
       // Add all changes to staging
       execSyncSafe('git add .', { encoding: 'utf8' });

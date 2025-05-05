@@ -37,7 +37,7 @@ describe('AI.generateCommitMessage', () => {
     
     // Call updateBranch with a summary
     const prompt = 'Add test script';
-    const result = await Git.updateBranch(tempDir, prompt, true); // with AI
+    const result = await Git.updateBranch(tempDir, prompt, 'test-chat-id', true); // with AI
 
     console.log(result);
 
@@ -69,7 +69,7 @@ describe('AI.generateCommitMessage', () => {
     
     // Call updateBranch with a summary
     const prompt = 'Add test script';
-    await Git.updateBranch(tempDir, prompt, true); // with AI
+    await Git.updateBranch(tempDir, prompt, 'test-chat-id', true); // with AI
 
     // Make a change to the repository
     fs.writeFileSync('test.js', `console.log("Hello, world!");\n console.log("Hello, again!");`);

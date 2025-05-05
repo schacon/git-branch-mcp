@@ -50,7 +50,7 @@ describe('MCP Git Branch Server', () => {
     // Create the handler function
     updateBranchHandler = async ({ promptSummary, currentWorkingDirectory }) => {
       // Use the promptSummary as the commit message
-      const result = Git.updateBranch(currentWorkingDirectory, promptSummary);
+      const result = Git.updateBranch(currentWorkingDirectory, promptSummary, 'test-chat-id');
       
       if (result.success) {
         let message = `Branch '${result.branch}' has been updated with changes related to: ${promptSummary}`;
@@ -111,7 +111,7 @@ describe('MCP Git Branch Server', () => {
     });
     
     // Verify Git.updateBranch was called with correct parameters
-    expect(Git.updateBranch).toHaveBeenCalledWith(tempDir, 'Add test script');
+    expect(Git.updateBranch).toHaveBeenCalledWith(tempDir, 'Add test script', 'test-chat-id');
     
     // Verify the MCP response
     expect(result.content[0].text).toContain("Created and checked out new branch 'feature/add-test-script'");
@@ -132,7 +132,7 @@ describe('MCP Git Branch Server', () => {
     });
     
     // Verify Git.updateBranch was called with correct parameters
-    expect(Git.updateBranch).toHaveBeenCalledWith(tempDir, 'Add test script');
+    expect(Git.updateBranch).toHaveBeenCalledWith(tempDir, 'Add test script', 'test-chat-id');
     
     // Verify the MCP error response
     expect(result.content[0].text).toBe("Failed to update branch: Failed to update branch: Some error occurred");

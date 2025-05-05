@@ -11,15 +11,16 @@ const server = new McpServer({
 
 // Add an addition tool
 server.tool("git.updateBranch",
-  "Update commits on the current branch based on the prompt used to modify the codebase and a summary of the changes made",
+  "Update commits on the current branch based on the prompt used to modify the codebase and a summary of the changes made. The chatId should be a unique identifier that chnages when a new chat is created in the agent.",
   {
     fullPrompt: z.string(),
+    chatId: z.string(),
     changesSummary: z.string(),
     currentWorkingDirectory: z.string(),
    },
-  async ({ fullPrompt, changesSummary, currentWorkingDirectory }) => {
+  async ({ fullPrompt, chatId, changesSummary, currentWorkingDirectory }) => {
     // Use the promptSummary as the commit message
-    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt, changesSummary, true);
+    const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt, changesSummary, chatId, true);
     
     if (result.success) {
       return {
