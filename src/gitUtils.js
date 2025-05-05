@@ -28,8 +28,30 @@ async function generateGitCommitData(apiKey, prompt, summary, diffOutput, branch
     const defaultBranchInstructions = "The branch name should be a simple name like \"feature/add-user-authentication\" or \"fix/typo-in-login-page\"";
     
     // Default commit message format instructions
-    const defaultCommitMessageInstructions = "The message should be a short summary line, followed by two newlines, then a short paragraph explaining WHY the change was needed based off the prompt. If a summary is provided, use it to create more short paragraphs or bullet points explaining the changes. The first summary line should be no more than 50 characters. Use the imperative mood for the message (e.g. \"Add user authentication system\" instead of \"Adding user authentication system\").";
+    const defaultCommitMessageInstructions = `The message should be a short summary line, followed by two newlines, then a short paragraph explaining WHY the change was needed based off the prompt. 
+
+- If a summary is provided, use it to create more short paragraphs or bullet points explaining the changes.
+- The first summary line should be no more than 50 characters.
+- Use the imperative mood for the message (e.g. "Add user authentication system" instead of "Adding user authentication system").
     
+Here is an example of a good commit message:
+    
+bundle-uri: copy all bundle references ino the refs/bundle space
+
+When downloading bundles via the bundle-uri functionality, we only copy the
+references from refs/heads into the refs/bundle space. I'm not sure why this
+refspec is hardcoded to be so limited, but it makes the ref negotiation on
+the subsequent fetch suboptimal, since it won't use objects that are
+referenced outside of the current heads of the bundled repository.
+
+This change to copy everything in refs/ in the bundle to refs/bundles/
+significantly helps the subsequent fetch, since nearly all the references
+are now included in the negotiation.
+
+The update to the bundle-uri unbundling refspec puts all the heads from a
+bundle file into refs/bundle/heads instead of directly into refs/bundle/ so
+the tests also need to be updated to look in the new heirarchy.`;
+
     // Use custom instructions if provided, otherwise use default
     const branchInstructions = branchFormatInstructions || defaultBranchInstructions;
     const commitMessageInstructions = commitMessageFormatInstructions || defaultCommitMessageInstructions;
