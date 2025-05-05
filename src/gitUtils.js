@@ -135,14 +135,23 @@ function writeLog(message) {
   fs.appendFileSync('/tmp/git-branch-mcp-log.txt', message + '\n');
 }
 
-// Function to read branch format instructions from .git/branch-format file
+// Function to read branch format instructions from multiple locations with precedence
 function readBranchFormatInstructions() {
   try {
-    if (fs.existsSync('.git/branch-format')) {
-      const instructions = fs.readFileSync('.git/branch-format', 'utf8').trim();
-      writeLog(`Read branch format instructions: ${instructions}`);
+    // First check for personal override in .git directory (with .md extension)
+    if (fs.existsSync('.git/branch-format.md')) {
+      const instructions = fs.readFileSync('.git/branch-format.md', 'utf8').trim();
+      writeLog(`Read branch format instructions from .git/branch-format.md: ${instructions}`);
       return instructions.length > 0 ? instructions : null;
     }
+    
+    // Finally check for version-controlled file in .gitbutler directory
+    if (fs.existsSync('.gitbutler/branch-format.md')) {
+      const instructions = fs.readFileSync('.gitbutler/branch-format', 'utf8').trim();
+      writeLog(`Read branch format instructions from .gitbutler/branch-format: ${instructions}`);
+      return instructions.length > 0 ? instructions : null;
+    }
+    
     return null;
   } catch (error) {
     writeLog(`Error reading branch format file: ${error.message}`);
@@ -150,14 +159,23 @@ function readBranchFormatInstructions() {
   }
 }
 
-// Function to read commit message format instructions from .git/commit-message-format file
+// Function to read commit message format instructions from multiple locations with precedence
 function readCommitMessageFormatInstructions() {
   try {
-    if (fs.existsSync('.git/commit-message-format')) {
-      const instructions = fs.readFileSync('.git/commit-message-format', 'utf8').trim();
-      writeLog(`Read commit message format instructions: ${instructions}`);
+    // First check for personal override in .git directory (with .md extension)
+    if (fs.existsSync('.git/commit-message-format.md')) {
+      const instructions = fs.readFileSync('.git/commit-message-format.md', 'utf8').trim();
+      writeLog(`Read commit message format instructions from .git/commit-message-format.md: ${instructions}`);
       return instructions.length > 0 ? instructions : null;
     }
+    
+    // Finally check for version-controlled file in .gitbutler directory
+    if (fs.existsSync('.gitbutler/commit-message-format.md')) {
+      const instructions = fs.readFileSync('.gitbutler/commit-message-format.md', 'utf8').trim();
+      writeLog(`Read commit message format instructions from .gitbutler/commit-message-format.md: ${instructions}`);
+      return instructions.length > 0 ? instructions : null;
+    }
+    
     return null;
   } catch (error) {
     writeLog(`Error reading commit message format file: ${error.message}`);

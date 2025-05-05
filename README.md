@@ -84,16 +84,24 @@ Shows a list of the current commits on the active branch and information about t
 
 You can customize how Git Branch MCP generates branch names and commit messages by using the following configuration files:
 
-### .git/branch-format
+### Format Instruction Files
 
-This file contains instructions for how branch names should be formatted when using the AI generation feature. When present, it overrides the default branch naming instructions.
+Git Branch MCP supports format instruction files in multiple locations with the following precedence order:
 
-To set up:
+1. **Personal Overrides** - Located in your local .git directory (not version-controlled):
 
-```bash
-# Create the file in your .git directory
-echo "Branch names should be in format 'type/short-description' where type is one of: feature, bugfix, hotfix, refactor, docs" > .git/branch-format
-```
+   - `.git/branch-format.md`
+   - `.git/commit-message-format.md`
+
+2. **Repository-wide Settings** - Located in the .gitbutler directory (version-controlled):
+   - `.gitbutler/branch-format.md`
+   - `.gitbutler/commit-message-format.md`
+
+The system will check these locations in order and use the first one it finds. This allows for both personal customization and team-wide standardization.
+
+### Branch Format Instructions
+
+Branch format instructions control how branch names are generated when using the AI feature.
 
 Example content:
 
@@ -101,16 +109,24 @@ Example content:
 Branch names should follow the pattern: 'team/feature-name' where team is one of: frontend, backend, devops, qa
 ```
 
-### .git/commit-message-format
+To set up repository-wide branch format instructions that can be version-controlled:
 
-This file contains instructions for how commit messages should be formatted when using the AI generation feature. When present, it overrides the default commit message format instructions.
+```bash
+# Create the file in your .gitbutler directory
+mkdir -p .gitbutler
+echo "Branch names should be in format 'type/short-description' where type is one of: feature, bugfix, hotfix, refactor, docs" > .gitbutler/branch-format.md
+```
 
-To set up:
+To set up personal branch format instructions that override repository settings:
 
 ```bash
 # Create the file in your .git directory
-echo "Commit messages should follow conventional commits format: type(scope): description" > .git/commit-message-format
+echo "Branch names should use my-username/feature-description format" > .git/branch-format.md
 ```
+
+### Commit Message Format Instructions
+
+Commit message format instructions control how commit messages are generated when using the AI feature.
 
 Example content:
 
@@ -123,5 +139,19 @@ Commit messages must follow the Conventional Commits specification:
 - Use imperative present tense (e.g., "add" not "adds" or "added")
 ```
 
-When these files are present in your repository, Git Branch MCP will read their contents and pass them to the AI model to guide the generation of branch names and commit messages according to your team's preferences.
-test
+To set up repository-wide commit message format instructions that can be version-controlled:
+
+```bash
+# Create the file in your .gitbutler directory
+mkdir -p .gitbutler
+echo "Commit messages should follow conventional commits format: type(scope): description" > .gitbutler/commit-message-format.md
+```
+
+To set up personal commit message format instructions that override repository settings:
+
+```bash
+# Create the file in your .git directory
+echo "Commit messages should include a ticket number in the format [TICKET-123]" > .git/commit-message-format.md
+```
+
+When these files are present in your repository, Git Branch MCP will read their contents based on the precedence order and pass them to the AI model to guide the generation of branch names and commit messages according to your team's or personal preferences.
