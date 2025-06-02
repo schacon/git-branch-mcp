@@ -19,7 +19,7 @@ server.tool("git.updateBranch",
     currentWorkingDirectory: z.string(),
    },
   async ({ fullPrompt, chatId, changesSummary, currentWorkingDirectory }) => {
-    // Use the promptSummary as the commit message
+    // Use fullPrompt as the commit message
     const result = await Git.updateBranch(currentWorkingDirectory, fullPrompt, changesSummary, chatId, true);
     
     if (result.success) {
