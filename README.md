@@ -55,7 +55,7 @@ npm run jest
 1. Go to cursor settings
 2. Search for "MCP"
 3. Click "Add new MCP Server"
-4. Type is "command" and command is `npm [path]/src/index.js`
+4. Type is "command" and command is `cargo run --release` in the project directory
 
 ## What does Git Branch MCP do?
 
