@@ -79,35 +79,27 @@ impl McpServer {
         let mut reader = BufReader::new(stdin);
         let mut line = String::new();
         
-        // Send initialization message
-        let init_response = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "result": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {
-                    "tools": {}
-                },
-                "serverInfo": {
-                    "name": self.name,
-                    "version": self.version
-                }
-            }
-        });
-        
-        stdout.write_all(format!("{}\n", init_response).as_bytes()).await?;
-        stdout.flush().await?;
+        eprintln!("MCP Server starting...");
         
         loop {
             line.clear();
             match reader.read_line(&mut line).await? {
-                0 => break, // EOF
+                0 => {
+                    eprintln!("EOF reached, exiting");
+                    break;
+                }
                 _ => {
+                    eprintln!("Received line: {}", line.trim());
                     if let Ok(request) = serde_json::from_str::<Value>(&line) {
+                        eprintln!("Parsed JSON request: {}", serde_json::to_string_pretty(&request)?);
                         if let Some(response) = self.handle_request(request).await? {
-                            stdout.write_all(format!("{}\n", response).as_bytes()).await?;
+                            let response_str = serde_json::to_string(&response)?;
+                            eprintln!("Sending response: {}", response_str);
+                            stdout.write_all(format!("{}\n", response_str).as_bytes()).await?;
                             stdout.flush().await?;
                         }
+                    } else {
+                        eprintln!("Failed to parse JSON: {}", line.trim());
                     }
                 }
             }
