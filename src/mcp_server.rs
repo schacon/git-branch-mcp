@@ -109,9 +109,34 @@ impl McpServer {
     }
     
     async fn handle_request(&self, request: Value) -> anyhow::Result<Option<Value>> {
+        eprintln!("Handling request method: {:?}", request.get("method"));
+        
         if let Some(method) = request.get("method").and_then(|m| m.as_str()) {
             match method {
+                "initialize" => {
+                    eprintln!("Handling initialize request");
+                    Ok(Some(serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": request.get("id"),
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {
+                                "tools": {}
+                            },
+                            "serverInfo": {
+                                "name": self.name,
+                                "version": self.version
+                            }
+                        }
+                    })))
+                }
+                "initialized" => {
+                    eprintln!("Handling initialized notification");
+                    // This is a notification, no response needed
+                    Ok(None)
+                }
                 "tools/list" => {
+                    eprintln!("Handling tools/list request");
                     let tools: Vec<_> = self.tools.values().map(|tool| {
                         serde_json::json!({
                             "name": tool.name,
