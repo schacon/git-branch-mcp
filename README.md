@@ -1,8 +1,20 @@
 # Git Branch MCP
 
-An implementation of the Model Context Protocol (MCP) server for Git branch operations.
+An implementation of the Model Context Protocol (MCP) server for Git branch operations, now ported to Rust.
 
-## Running the Server
+## Building and Running the Server
+
+### Rust Version (Current)
+
+```bash
+# Build the project
+cargo build --release
+
+# Run the server
+cargo run --release
+```
+
+### JavaScript Version (Legacy)
 
 ```bash
 npm start
