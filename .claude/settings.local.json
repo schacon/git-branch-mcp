@@ -6,7 +6,10 @@
       "Bash(npm ls:*)",
       "Bash(npm install)",
       "Bash(mkdir:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(rm:*)",
+      "Bash(cargo:*)",
+      "Bash(RUST_BACKTRACE=1 cargo test -- --nocapture)"
     ],
     "deny": []
   },

@@ -50,7 +50,7 @@ pub struct CommitInfo {
 #[derive(Debug, Clone)]
 pub struct CreationInfo {
     pub date: String,
-    pub commit_hash: String,
+    pub _commit_hash: String,
 }
 
 #[derive(Debug, Clone)]
@@ -376,7 +376,7 @@ impl Git {
             }
         }
         
-        let formatted_message = CommitMessageFormatter::format_for_commit(&message);
+        let formatted_message = CommitMessageFormatter::format_for_commit(message.clone());
         Self::commit_with_message(&formatted_message)?;
         
         let latest_commit_hash = Command::new("git")
@@ -493,7 +493,7 @@ impl Git {
         
         let merge_details = String::from_utf8(merge_output.stdout)?;
         let mut result_message = format!("Successfully merged branch '{}' into '{}'", current_branch, default_branch);
-        let mut branch_deleted = false;
+        let mut _branch_deleted = false;
         
         if delete_branch {
             let delete_output = Command::new("git")
@@ -501,7 +501,7 @@ impl Git {
                 .output()?;
             
             if delete_output.status.success() {
-                branch_deleted = true;
+                _branch_deleted = true;
                 result_message.push_str(&format!(" and deleted branch '{}'", current_branch));
             } else {
                 result_message.push_str(&format!(". Note: Could not delete branch '{}' (it might have unmerged changes): {}", 

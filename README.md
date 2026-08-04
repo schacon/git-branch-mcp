@@ -1,10 +1,8 @@
 # Git Branch MCP
 
-An implementation of the Model Context Protocol (MCP) server for Git branch operations, now ported to Rust.
+A Rust implementation of the Model Context Protocol (MCP) server for Git branch operations.
 
 ## Building and Running the Server
-
-### Rust Version (Current)
 
 ```bash
 # Build the project
@@ -14,52 +12,16 @@ cargo build --release
 cargo run --release
 ```
 
-### JavaScript Version (Legacy)
-
-```bash
-npm start
-```
-
 ## Testing
 
-The project includes several test suites:
+Run the Rust test suite:
 
 ```bash
 # Run all tests
-npm run jest
+cargo test -- --test-threads=1
 
-# Run specific test file
-npm run jest -- test/gitUtils.test.js
-npm run jest -- test/mcp.test.js
-npm run jest -- test/integration.test.js
-npm run jest -- test/commitMessageFormatter.test.js
-```
-
-### Test Suite Overview
-
-- **gitUtils.test.js**: Tests the Git utility functions directly
-- **mcp.test.js**: Tests the MCP server functionality with mocked Git utilities
-- **integration.test.js**: End-to-end tests of the MCP server with real Git operations
-- **commitMessageFormatter.test.js**: Tests the commit message formatting utilities that handle proper Git commit message formatting and parsing
-
-### Commit Message Formatter
-
-The commit message formatter provides utilities for formatting Git commit messages according to best practices:
-
-- Wraps lines at 72 characters
-- Preserves special formatting for bullet points, quotes, and code blocks
-- Provides methods for UI-friendly message parsing and Git-friendly storage formats
-
-To run only the commit message formatter tests:
-
-```bash
-npm run jest -- test/commitMessageFormatter.test.js
-```
-
-## MCP Inspector Testing
-
-```bash
-npm run jest
+# Run specific test module
+cargo test git_utils
 ```
 
 ## Setting up Cursor to use the server
